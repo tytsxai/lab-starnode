@@ -4,9 +4,6 @@
 
 ```txt
 .
-├─ .github/
-│  └─ workflows/
-│     └─ ci.yml
 ├─ 01_项目愿景.md
 ├─ 02_产品需求文档.md
 ├─ 03_技术架构.md
@@ -55,7 +52,6 @@
 - `03_技术架构.md`：定义分层架构、数据模型与技术决策。
 - `04_商业策略.md`：定义增长飞轮与收入模型。
 - `05_开发路线图.md`：定义阶段执行计划与 DoD。
-- `.github/workflows/ci.yml`：CI 门禁（Node 22 + lint + test + typecheck + build）。
 - `apps/web/app/page.tsx`：MVP 入口页面（编辑 + 宇宙视图）。
 - `apps/web/components/EditorPanel.tsx`：编辑器面板（输入校验、关键词预览、编辑/新建切换）。
 - `apps/web/components/LinkPanel.tsx`：关联解释列表（标签证据/关键词证据/分数构成 + 模式筛选）。
@@ -121,4 +117,4 @@ apps/web
 - 2026-02-14：新增关键词关联算法与可解释评分结构（标签证据 + 关键词证据 + 分数拆解）。
 - 2026-02-14：关联面板支持“仅标签/仅关键词/混合”筛选与证据词回填搜索。
 - 2026-02-14：抽离表单校验与批量计数 helper，并补齐 web/store 关键单测。
-- 2026-02-14：storage 增加 schemaVersion 迁移管线与节流保存，新增 CI 工作流（Node 22 全门禁）。
+- 2026-02-14：storage 增加 schemaVersion 迁移管线与节流保存；CI workflow 已在本地提交，待 `workflow` scope 权限后推送远端。
