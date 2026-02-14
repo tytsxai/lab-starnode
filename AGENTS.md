@@ -34,7 +34,8 @@
 │     └─ tsconfig.json
 └─ packages/
    ├─ core/
-   │  └─ src/index.ts
+   │  ├─ src/index.ts
+   │  └─ src/index.test.ts
    ├─ renderer/
    │  └─ src/index.tsx
    └─ storage/
@@ -54,6 +55,7 @@
 - `apps/web/lib/useNoteStore.ts`：统一管理笔记状态（新增/更新/删除/批量迁移/批量删除/冰封解冻/编辑态/一次撤销快照）。
 - `apps/web/.eslintrc.json`：固定 Next.js ESLint 规则，保证 `next lint` 非交互可执行。
 - `packages/core/src/index.ts`：领域模型、星球配置源、星球计算规则与可解释关联计算（默认仅统计活跃笔记）。
+- `packages/core/src/index.test.ts`：核心领域规则测试（标签标准化、冻结过滤、关联计算边界）。
 - `packages/renderer/src/index.tsx`：3D 宇宙渲染组件（支持连线与星球点击选中）。
 - `packages/storage/src/index.ts`：本地笔记持久化适配（localStorage，含历史数据兼容迁移）。
 - `.nvmrc`：统一 Node LTS 版本，降低 TypeScript 编译器异常风险。
@@ -102,3 +104,4 @@ apps/web
 - 2026-02-14：新增 Node 22 版本门禁脚本，修复非 LTS 下 TypeScript `Debug Failure` 风险。
 - 2026-02-14：补充 `apps/web/.eslintrc.json`，使 lint 流程改为可自动执行的非交互模式。
 - 2026-02-14：新增笔记冰封/解冻机制（单条 + 批量 + 视图切换），并使星球统计/关联默认仅计算活跃笔记。
+- 2026-02-14：补齐 core 领域测试并优化批量操作计数逻辑，消除“提示数量与实际变更不一致”的前端体验偏差。
