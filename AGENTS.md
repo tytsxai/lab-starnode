@@ -31,6 +31,7 @@
 │     │     ├─ NoteListOverlay.tsx
 │     │     ├─ types.ts
 │     │     ├─ useBatchActions.ts
+│     │     ├─ useBatchActions.test.ts
 │     │     └─ useNoteFilterState.ts
 │     ├─ lib/
 │     │  ├─ batchHelpers.ts
@@ -75,6 +76,7 @@
 - `apps/web/components/UniversePanel.tsx`：右侧 HUD 交互面板（筛选/标签/批量操作/撤销/编辑跳转）。
 - `apps/web/components/universe/useNoteFilterState.ts`：统一管理筛选查询状态（搜索、标签、可见性）。
 - `apps/web/components/universe/useBatchActions.ts`：封装批量迁移/冰封/删除动作与反馈文案。
+- `apps/web/components/universe/useBatchActions.test.ts`：批量删除确认文案与实际变更一致性测试。
 - `apps/web/components/universe/NoteListOverlay.tsx`：笔记列表纯渲染层（选择、编辑入口、单条冻结/删除）。
 - `apps/web/components/universe/types.ts`：Universe 面板查询与列表渲染类型定义。
 - `apps/web/lib/noteForm.ts`：编辑输入校验与关键词预览纯函数。
@@ -91,8 +93,8 @@
 - `packages/core/src/index.ts`：领域模型、关键词提取、混合关联评分与可解释证据输出（默认仅统计活跃笔记）。
 - `packages/core/src/index.test.ts`：核心规则测试（去噪、混合评分、冻结过滤、排序稳定性）。
 - `packages/renderer/src/index.tsx`：3D 宇宙渲染组件（支持连线与星球点击选中）。
-- `packages/storage/src/index.ts`：本地持久化（schemaVersion + 迁移管线 + 节流写入）。
-- `packages/storage/src/index.test.ts`：storage 迁移与节流写入回归测试（v1/v2 到 v3 的兼容验证）。
+- `packages/storage/src/index.ts`：本地持久化（schemaVersion + 迁移管线 + 节流写入 + 跨标签页变更订阅 + 脏数据兜底归一化）。
+- `packages/storage/src/index.test.ts`：storage 迁移、节流写入与跨标签页订阅回归测试（v1/v2 到 v3 的兼容验证）。
 - `.nvmrc`：统一 Node LTS 版本，降低 TypeScript 编译器异常风险。
 - `scripts/check-node-version.mjs`：Node 主版本门禁，阻断非 Node 22 环境下的开发/构建/类型检查。
 - `tsconfig.base.json`：monorepo 共享 TypeScript 基础配置（采用 workspace 包解析，避免 path alias 导致的编译器异常）。
@@ -152,3 +154,7 @@ apps/web
 - 2026-02-14：完成 UniversePanel 分层拆分（query state / batch actions / list render），并将 useNoteStore 重构为 commands + adapter + factory 注入架构，新增 6 条 store 关键行为测试。
 - 2026-02-14：新增 `ci:verify` 一键质量门禁脚本与生产发布检查清单文档；CI workflow 文件已在本地生成，待 `workflow` scope 权限后推送远端。
 - 2026-02-14：移除 `tsconfig.base.json` 中跨包 `paths` 映射，改为 workspace 包解析以修复 `tsc --noEmit` Debug Failure；根构建脚本改为 `--if-present` 以匹配多包实际脚本覆盖。
+- 2026-02-15：完成首轮工程审计修复：宇宙统计口径统一为“仅活跃笔记”、批量删除提示改为按可删除数确认并按实际删除数反馈、编辑目标丢失时主动清理表单脏状态、storage 新增 `pagehide/beforeunload` 节流落盘兜底，并补齐回归测试。
+- 2026-02-15：完成稳定性增强：新增 storage 跨标签页 `storage` 事件订阅能力，store 在外部变更时自动同步 notes 并清理失效编辑态/撤销快照，补齐多标签页一致性回归测试。
+- 2026-02-15：补强 storage 订阅边界测试（外部删除 key、非法 payload），确保异常输入不污染当前会话状态。
+- 2026-02-15：完成收尾治理：storage 对非法 `planetId/updatedAt` 增加归一化兜底，避免“隐形笔记”与排序不稳定；补齐对应回归测试并补充关键注释，降低新人维护认知成本。
