@@ -38,6 +38,9 @@ export function UniversePanel() {
     () => notes.filter((note) => note.planetId === selectedPlanetId),
     [notes, selectedPlanetId]
   )
+  const selectedNoteMap = useMemo(() => {
+    return new Map(selectedNotes.map((note) => [note.id, note]))
+  }, [selectedNotes])
   const activeCount = useMemo(() => selectedNotes.filter((note) => !note.isFrozen).length, [selectedNotes])
   const frozenCount = selectedNotes.length - activeCount
   const availableTags = useMemo(() => {
@@ -129,8 +132,17 @@ export function UniversePanel() {
               <button
                 className="mini-button"
                 onClick={() => {
+                  const movedCount = selectedNoteIds.reduce((count, id) => {
+                    const note = selectedNoteMap.get(id)
+                    if (!note) return count
+                    return note.planetId === batchTargetPlanetId ? count : count + 1
+                  }, 0)
+                  if (movedCount === 0) {
+                    setToast('没有可迁移的笔记')
+                    return
+                  }
                   moveNotes(selectedNoteIds, batchTargetPlanetId)
-                  setToast(`已迁移 ${selectedNoteIds.length} 条笔记`)
+                  setToast(`已迁移 ${movedCount} 条笔记`)
                   clearSelection()
                 }}
               >
@@ -139,8 +151,17 @@ export function UniversePanel() {
               <button
                 className="mini-button"
                 onClick={() => {
+                  const freezeCount = selectedNoteIds.reduce((count, id) => {
+                    const note = selectedNoteMap.get(id)
+                    if (!note) return count
+                    return note.isFrozen ? count : count + 1
+                  }, 0)
+                  if (freezeCount === 0) {
+                    setToast('没有可冰封的笔记')
+                    return
+                  }
                   setNotesFrozen(selectedNoteIds, true)
-                  setToast(`已冰封 ${selectedNoteIds.length} 条笔记`)
+                  setToast(`已冰封 ${freezeCount} 条笔记`)
                   clearSelection()
                 }}
               >
@@ -149,8 +170,17 @@ export function UniversePanel() {
               <button
                 className="mini-button"
                 onClick={() => {
+                  const unfreezeCount = selectedNoteIds.reduce((count, id) => {
+                    const note = selectedNoteMap.get(id)
+                    if (!note) return count
+                    return note.isFrozen ? count + 1 : count
+                  }, 0)
+                  if (unfreezeCount === 0) {
+                    setToast('没有可解冻的笔记')
+                    return
+                  }
                   setNotesFrozen(selectedNoteIds, false)
-                  setToast(`已解冻 ${selectedNoteIds.length} 条笔记`)
+                  setToast(`已解冻 ${unfreezeCount} 条笔记`)
                   clearSelection()
                 }}
               >
@@ -159,10 +189,18 @@ export function UniversePanel() {
               <button
                 className="danger-button"
                 onClick={() => {
+                  const deletableCount = selectedNoteIds.reduce(
+                    (count, id) => (selectedNoteMap.has(id) ? count + 1 : count),
+                    0
+                  )
+                  if (deletableCount === 0) {
+                    setToast('没有可删除的笔记')
+                    return
+                  }
                   const ok = window.confirm(`确认删除选中的 ${selectedNoteIds.length} 条笔记吗？此操作可撤销一次。`)
                   if (!ok) return
                   deleteNotes(selectedNoteIds)
-                  setToast(`已删除 ${selectedNoteIds.length} 条笔记`)
+                  setToast(`已删除 ${deletableCount} 条笔记`)
                   clearSelection()
                 }}
               >

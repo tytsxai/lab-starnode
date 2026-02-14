@@ -107,6 +107,8 @@ export const useNoteStore = create<NoteState>((set) => ({
   },
   deleteNote: (noteId) => {
     set((state) => {
+      const exists = state.notes.some((note) => note.id === noteId)
+      if (!exists) return state
       const notes = state.notes.filter((note) => note.id !== noteId)
       saveNotes(notes)
       return {
@@ -122,8 +124,11 @@ export const useNoteStore = create<NoteState>((set) => ({
     })
   },
   deleteNotes: (noteIds) => {
+    if (noteIds.length === 0) return
     const idSet = new Set(noteIds)
     set((state) => {
+      const affectedCount = state.notes.reduce((count, note) => (idSet.has(note.id) ? count + 1 : count), 0)
+      if (affectedCount === 0) return state
       const notes = state.notes.filter((note) => !idSet.has(note.id))
       saveNotes(notes)
       return {
@@ -133,7 +138,7 @@ export const useNoteStore = create<NoteState>((set) => ({
           notes: state.notes,
           selectedPlanetId: state.selectedPlanetId,
           editingNoteId: state.editingNoteId,
-          message: `已删除 ${noteIds.length} 条笔记`
+          message: `已删除 ${affectedCount} 条笔记`
         }
       }
     })
@@ -143,8 +148,15 @@ export const useNoteStore = create<NoteState>((set) => ({
 
     const idSet = new Set(noteIds)
     set((state) => {
+      const affectedCount = state.notes.reduce((count, note) => {
+        if (!idSet.has(note.id)) return count
+        return note.planetId === targetPlanetId ? count : count + 1
+      }, 0)
+      if (affectedCount === 0) return state
+
       const notes = state.notes.map((note) => {
         if (!idSet.has(note.id)) return note
+        if (note.planetId === targetPlanetId) return note
         return {
           ...note,
           planetId: targetPlanetId,
@@ -159,7 +171,7 @@ export const useNoteStore = create<NoteState>((set) => ({
           notes: state.notes,
           selectedPlanetId: state.selectedPlanetId,
           editingNoteId: state.editingNoteId,
-          message: `已迁移 ${noteIds.length} 条笔记`
+          message: `已迁移 ${affectedCount} 条笔记`
         }
       }
     })
