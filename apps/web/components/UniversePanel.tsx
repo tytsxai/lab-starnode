@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { calculatePlanetLinks, calculatePlanetStats, getPlanetOptions } from '@starnode/core'
-import { PlanetCanvas } from '@starnode/renderer'
+import { getPlanetOptions } from '@starnode/core'
 import { useNoteStore } from '../lib/useNoteStore'
-import { LinkPanel } from './LinkPanel'
+import { NoteListOverlay } from './universe/NoteListOverlay'
+import { useBatchActions } from './universe/useBatchActions'
+import { useNoteFilterState } from './universe/useNoteFilterState'
+import type { SortBy } from './universe/types'
 
 const PLANET_OPTIONS = getPlanetOptions()
 
@@ -13,6 +15,7 @@ export function UniversePanel() {
   const selectedPlanetId = useNoteStore((state) => state.selectedPlanetId)
   const setSelectedPlanetId = useNoteStore((state) => state.setSelectedPlanetId)
   const editingNoteId = useNoteStore((state) => state.editingNoteId)
+  const isFocusMode = useNoteStore((state) => state.isFocusMode)
   const deleteNote = useNoteStore((state) => state.deleteNote)
   const undoSnapshot = useNoteStore((state) => state.undoSnapshot)
   const undoLastAction = useNoteStore((state) => state.undoLastAction)
@@ -20,57 +23,38 @@ export function UniversePanel() {
   const deleteNotes = useNoteStore((state) => state.deleteNotes)
   const moveNotes = useNoteStore((state) => state.moveNotes)
   const setNotesFrozen = useNoteStore((state) => state.setNotesFrozen)
-  const [showAllLinks, setShowAllLinks] = useState(false)
-  const [linkMode, setLinkMode] = useState<'all' | 'tag' | 'keyword' | 'mixed'>('all')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState<'updated_desc' | 'title_asc'>('updated_desc')
-  const [activeTag, setActiveTag] = useState<string | null>(null)
-  const [visibilityMode, setVisibilityMode] = useState<'active' | 'all' | 'frozen'>('active')
+  const { query, setSearchTerm, setSortBy, setActiveTag, setVisibilityMode, resetFilters } = useNoteFilterState()
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([])
   const [batchTargetPlanetId, setBatchTargetPlanetId] = useState('p-tech')
   const [toast, setToast] = useState<string | null>(null)
 
-  const includeFrozenInGraph = visibilityMode !== 'active'
-  const planets = useMemo(
-    () => calculatePlanetStats(notes, { includeFrozen: includeFrozenInGraph }),
-    [includeFrozenInGraph, notes]
-  )
-  const links = useMemo(
-    () => calculatePlanetLinks(notes, { includeFrozen: includeFrozenInGraph }),
-    [includeFrozenInGraph, notes]
-  )
-  const planetNameMap = useMemo(() => {
-    return new Map(planets.map((planet) => [planet.id, planet.name]))
-  }, [planets])
   const selectedNotes = useMemo(
     () => notes.filter((note) => note.planetId === selectedPlanetId),
     [notes, selectedPlanetId]
   )
-  const selectedNoteMap = useMemo(() => {
-    return new Map(selectedNotes.map((note) => [note.id, note]))
-  }, [selectedNotes])
-  const activeCount = useMemo(() => selectedNotes.filter((note) => !note.isFrozen).length, [selectedNotes])
-  const frozenCount = selectedNotes.length - activeCount
+  const selectedNoteMap = useMemo(() => new Map(selectedNotes.map((note) => [note.id, note])), [selectedNotes])
   const availableTags = useMemo(() => {
     const tagCountMap = new Map<string, number>()
     for (const note of selectedNotes) {
-      if (visibilityMode === 'active' && note.isFrozen) continue
-      if (visibilityMode === 'frozen' && !note.isFrozen) continue
+      if (query.visibilityMode === 'active' && note.isFrozen) continue
+      if (query.visibilityMode === 'frozen' && !note.isFrozen) continue
       for (const tag of note.tags) {
         tagCountMap.set(tag, (tagCountMap.get(tag) ?? 0) + 1)
       }
     }
+
     return Array.from(tagCountMap.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-  }, [selectedNotes, visibilityMode])
+      .slice(0, 12)
+  }, [query.visibilityMode, selectedNotes])
   const filteredNotes = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
+    const term = query.searchTerm.trim().toLowerCase()
     const list = selectedNotes.filter((note) => {
-      if (visibilityMode === 'active' && note.isFrozen) return false
-      if (visibilityMode === 'frozen' && !note.isFrozen) return false
-      if (activeTag && !note.tags.includes(activeTag)) return false
+      if (query.visibilityMode === 'active' && note.isFrozen) return false
+      if (query.visibilityMode === 'frozen' && !note.isFrozen) return false
+      if (query.activeTag && !note.tags.includes(query.activeTag)) return false
       if (!term) return true
+
       const hitTitle = note.title.toLowerCase().includes(term)
       const hitContent = note.content.toLowerCase().includes(term)
       const hitTag = note.tags.some((tag) => tag.toLowerCase().includes(term))
@@ -78,24 +62,23 @@ export function UniversePanel() {
     })
 
     return [...list].sort((a, b) => {
-      if (sortBy === 'title_asc') return a.title.localeCompare(b.title)
+      if (query.sortBy === 'title_asc') return a.title.localeCompare(b.title)
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     })
-  }, [activeTag, searchTerm, selectedNotes, sortBy, visibilityMode])
-  const visibleLinks = useMemo(() => {
-    const modeFiltered = links.filter((link) => {
-      if (linkMode === 'all') return true
-      if (linkMode === 'tag') return link.sharedTags.length > 0 && link.sharedKeywords.length === 0
-      if (linkMode === 'keyword') return link.sharedKeywords.length > 0 && link.sharedTags.length === 0
-      return link.sharedTags.length > 0 && link.sharedKeywords.length > 0
-    })
-
-    if (showAllLinks) return modeFiltered
-    return modeFiltered.filter(
-      (link) => link.sourcePlanetId === selectedPlanetId || link.targetPlanetId === selectedPlanetId
-    )
-  }, [linkMode, links, selectedPlanetId, showAllLinks])
+  }, [query.activeTag, query.searchTerm, query.sortBy, query.visibilityMode, selectedNotes])
+  const activeCount = useMemo(() => selectedNotes.filter((note) => !note.isFrozen).length, [selectedNotes])
+  const frozenCount = selectedNotes.length - activeCount
   const hasSelected = selectedNoteIds.length > 0
+
+  const { handleBatchMove, handleBatchFreeze, handleBatchUnfreeze, handleBatchDelete } = useBatchActions({
+    selectedNoteMap,
+    moveNotes,
+    setNotesFrozen,
+    deleteNotes,
+    clearSelection: () => setSelectedNoteIds([]),
+    notify: setToast,
+    confirm: (message) => window.confirm(message)
+  })
 
   useEffect(() => {
     setSelectedNoteIds([])
@@ -119,16 +102,39 @@ export function UniversePanel() {
   const clearSelection = () => setSelectedNoteIds([])
   const selectAllFiltered = () => setSelectedNoteIds(filteredNotes.map((note) => note.id))
 
+  if (isFocusMode) return null
+
   return (
-    <section className="canvas-wrap">
-      <PlanetCanvas
-        planets={planets}
-        links={visibleLinks}
-        selectedPlanetId={selectedPlanetId}
-        onSelectPlanet={setSelectedPlanetId}
-      />
-      <div className="overlay">
-        <h3 className="overlay-title">当前星球笔记（总计 {selectedNotes.length} / 活跃 {activeCount} / 冰封 {frozenCount}）</h3>
+    <aside className="hud-sidebar" style={{ right: 0, borderLeft: '1px solid rgba(255,255,255,0.05)', borderRight: 'none' }}>
+      <div className="card">
+        <h3 className="title">
+          <span>NAVIGATION</span>
+        </h3>
+        <div className="quick-actions">
+          <button
+            className={`mini-button ${query.visibilityMode === 'active' ? 'active' : ''}`}
+            onClick={() => setVisibilityMode('active')}
+          >
+            ACTIVE
+          </button>
+          <button className={`mini-button ${query.visibilityMode === 'all' ? 'active' : ''}`} onClick={() => setVisibilityMode('all')}>
+            ALL
+          </button>
+          <button
+            className={`mini-button ${query.visibilityMode === 'frozen' ? 'active' : ''}`}
+            onClick={() => setVisibilityMode('frozen')}
+          >
+            FROZEN
+          </button>
+        </div>
+      </div>
+
+      <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <h3 className="title">
+          <span>SECTOR DATA / {selectedNotes.length}</span>
+          <span className="hint-line">ACTIVE {activeCount} · FROZEN {frozenCount}</span>
+        </h3>
+
         {hasSelected && (
           <div className="batch-bar">
             <div className="batch-text">已选择 {selectedNoteIds.length} 条</div>
@@ -143,64 +149,17 @@ export function UniversePanel() {
                 </option>
               ))}
             </select>
-            <div className="batch-actions">
-              <button
-                className="mini-button"
-                onClick={() => {
-                  const movedCount = moveNotes(selectedNoteIds, batchTargetPlanetId)
-                  if (movedCount === 0) {
-                    setToast('没有可迁移的笔记')
-                    return
-                  }
-                  setToast(`已迁移 ${movedCount} 条笔记`)
-                  clearSelection()
-                }}
-              >
+            <div className="quick-actions">
+              <button className="mini-button" onClick={() => handleBatchMove(selectedNoteIds, batchTargetPlanetId)}>
                 批量迁移
               </button>
-              <button
-                className="mini-button"
-                onClick={() => {
-                  const freezeCount = setNotesFrozen(selectedNoteIds, true)
-                  if (freezeCount === 0) {
-                    setToast('没有可冰封的笔记')
-                    return
-                  }
-                  setToast(`已冰封 ${freezeCount} 条笔记`)
-                  clearSelection()
-                }}
-              >
+              <button className="mini-button" onClick={() => handleBatchFreeze(selectedNoteIds)}>
                 批量冰封
               </button>
-              <button
-                className="mini-button"
-                onClick={() => {
-                  const unfreezeCount = setNotesFrozen(selectedNoteIds, false)
-                  if (unfreezeCount === 0) {
-                    setToast('没有可解冻的笔记')
-                    return
-                  }
-                  setToast(`已解冻 ${unfreezeCount} 条笔记`)
-                  clearSelection()
-                }}
-              >
+              <button className="mini-button" onClick={() => handleBatchUnfreeze(selectedNoteIds)}>
                 批量解冻
               </button>
-              <button
-                className="danger-button"
-                onClick={() => {
-                  const deletableCount = selectedNoteIds.filter((id) => selectedNoteMap.has(id)).length
-                  if (deletableCount === 0) {
-                    setToast('没有可删除的笔记')
-                    return
-                  }
-                  const ok = window.confirm(`确认删除选中的 ${selectedNoteIds.length} 条笔记吗？此操作可撤销一次。`)
-                  if (!ok) return
-                  deleteNotes(selectedNoteIds)
-                  setToast(`已删除 ${deletableCount} 条笔记`)
-                  clearSelection()
-                }}
-              >
+              <button className="danger-button" onClick={() => handleBatchDelete(selectedNoteIds)}>
                 批量删除
               </button>
               <button className="mini-button" onClick={clearSelection}>
@@ -209,6 +168,7 @@ export function UniversePanel() {
             </div>
           </div>
         )}
+
         {undoSnapshot && (
           <div className="undo-bar">
             <div className="batch-text">{undoSnapshot.message}</div>
@@ -223,53 +183,33 @@ export function UniversePanel() {
             </button>
           </div>
         )}
+
         <input
           className="input compact-input"
-          value={searchTerm}
+          value={query.searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="搜索标题 / 内容 / 标签"
+          placeholder="SEARCH DATABASE..."
         />
-        <select className="select compact-input" value={sortBy} onChange={(event) => setSortBy(event.target.value as 'updated_desc' | 'title_asc')}>
+        <select
+          className="select compact-input"
+          value={query.sortBy}
+          onChange={(event) => setSortBy(event.target.value as SortBy)}
+        >
           <option value="updated_desc">按更新时间（新→旧）</option>
           <option value="title_asc">按标题（A→Z）</option>
         </select>
-        <div className="quick-actions">
-          <button
-            className={`mini-button ${visibilityMode === 'active' ? 'mini-button-active' : ''}`}
-            onClick={() => setVisibilityMode('active')}
-          >
-            只看活跃
-          </button>
-          <button
-            className={`mini-button ${visibilityMode === 'all' ? 'mini-button-active' : ''}`}
-            onClick={() => setVisibilityMode('all')}
-          >
-            查看全部
-          </button>
-          <button
-            className={`mini-button ${visibilityMode === 'frozen' ? 'mini-button-active' : ''}`}
-            onClick={() => setVisibilityMode('frozen')}
-          >
-            只看冰封
-          </button>
-        </div>
+
         <div className="tag-chip-wrap">
-          <button
-            className={`tag-chip ${activeTag === null ? 'tag-chip-active' : ''}`}
-            onClick={() => setActiveTag(null)}
-          >
-            全部标签
+          <button className={`tag-chip ${query.activeTag === null ? 'active' : ''}`} onClick={() => setActiveTag(null)}>
+            ALL
           </button>
           {availableTags.map(([tag, count]) => (
-            <button
-              key={tag}
-              className={`tag-chip ${activeTag === tag ? 'tag-chip-active' : ''}`}
-              onClick={() => setActiveTag(tag)}
-            >
-              #{tag} ({count})
+            <button key={tag} className={`tag-chip ${query.activeTag === tag ? 'active' : ''}`} onClick={() => setActiveTag(tag)}>
+              #{tag} [{count}]
             </button>
           ))}
         </div>
+
         <div className="quick-actions">
           <button className="mini-button" onClick={selectAllFiltered} disabled={filteredNotes.length === 0}>
             全选过滤结果（{filteredNotes.length}）
@@ -277,89 +217,36 @@ export function UniversePanel() {
           <button className="mini-button" onClick={clearSelection} disabled={!hasSelected}>
             清空选择
           </button>
-          <button
-            className="mini-button"
-            onClick={() => {
-              setSearchTerm('')
-              setActiveTag(null)
-            }}
-          >
+          <button className="mini-button" onClick={resetFilters}>
             重置过滤
           </button>
         </div>
-        <div className="overlay-list">
-          {filteredNotes.slice(0, 8).map((note) => (
-            <div
-              key={note.id}
-              className={`overlay-item ${editingNoteId === note.id ? 'overlay-item-active' : ''}`}
-            >
-              <input
-                type="checkbox"
-                checked={selectedNoteIds.includes(note.id)}
-                onChange={() => toggleNoteSelection(note.id)}
-              />
-              <div className="overlay-note-main">
-                <button
-                  className="link-button overlay-note-title"
-                  onClick={() => {
-                    startEditNote(note.id)
-                    setSelectedPlanetId(note.planetId)
-                  }}
-                >
-                  {note.title}
-                </button>
-                <div className="overlay-subline">
-                  状态：{note.isFrozen ? '已冰封' : '活跃'} / 标签：{note.tags.length > 0 ? note.tags.join(', ') : '无'} / 更新于{' '}
-                  {new Date(note.updatedAt).toLocaleDateString('zh-CN')}
-                </div>
-              </div>
-              <button
-                className="mini-button"
-                onClick={() => {
-                  const nextFrozen = !note.isFrozen
-                  const changed = setNotesFrozen([note.id], nextFrozen)
-                  if (changed > 0) setToast(nextFrozen ? '已冰封 1 条笔记' : '已解冻 1 条笔记')
-                }}
-              >
-                {note.isFrozen ? '解冻' : '冰封'}
-              </button>
-              <button
-                className="danger-button"
-                onClick={() => {
-                  const ok = window.confirm('确认删除这条笔记吗？此操作可撤销一次。')
-                  if (!ok) return
-                  const changed = deleteNote(note.id)
-                  if (changed > 0) setToast('已删除 1 条笔记')
-                }}
-              >
-                删除
-              </button>
-            </div>
-          ))}
-          {selectedNotes.length === 0 && <div className="overlay-empty">这里还没有笔记，先写下第一条。</div>}
-          {selectedNotes.length > 0 && filteredNotes.length === 0 && (
-            <div className="overlay-empty">没有匹配的结果，换个关键词试试。</div>
-          )}
-        </div>
+
+        <NoteListOverlay
+          notes={filteredNotes}
+          selectedNotesCount={selectedNotes.length}
+          editingNoteId={editingNoteId}
+          selectedNoteIds={selectedNoteIds}
+          onToggleNoteSelection={toggleNoteSelection}
+          onStartEdit={(noteId, planetId) => {
+            startEditNote(noteId)
+            setSelectedPlanetId(planetId)
+          }}
+          onToggleFrozen={(note) => {
+            const nextFrozen = !note.isFrozen
+            const changed = setNotesFrozen([note.id], nextFrozen)
+            if (changed > 0) setToast(nextFrozen ? '已冰封 1 条笔记' : '已解冻 1 条笔记')
+          }}
+          onDeleteNote={(noteId) => {
+            const ok = window.confirm('确认删除这条笔记吗？此操作可撤销一次。')
+            if (!ok) return
+            const changed = deleteNote(noteId)
+            if (changed > 0) setToast('已删除 1 条笔记')
+          }}
+        />
       </div>
+
       {toast && <div className="toast">{toast}</div>}
-      <LinkPanel
-        links={visibleLinks}
-        showAllLinks={showAllLinks}
-        onToggleShowAllLinks={() => setShowAllLinks((prev) => !prev)}
-        linkMode={linkMode}
-        onChangeLinkMode={setLinkMode}
-        planetNameMap={planetNameMap}
-        onSelectPlanet={setSelectedPlanetId}
-        onPickEvidence={(value, kind) => {
-          setSearchTerm(value)
-          if (kind === 'tag') {
-            setActiveTag(value)
-          } else {
-            setActiveTag(null)
-          }
-        }}
-      />
-    </section>
+    </aside>
   )
 }

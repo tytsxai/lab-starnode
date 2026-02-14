@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { calculatePlanetStats, getPlanetOptions } from '@starnode/core'
+import { getPlanetOptions } from '@starnode/core'
 import { useNoteStore } from '../lib/useNoteStore'
 import { getKeywordPreview, parseTags, validateNoteInput, TAG_MAX_COUNT, TITLE_MAX_LENGTH } from '../lib/noteForm'
 
@@ -14,12 +14,14 @@ export function EditorPanel() {
   const cancelEditNote = useNoteStore((state) => state.cancelEditNote)
   const selectedPlanetId = useNoteStore((state) => state.selectedPlanetId)
   const setSelectedPlanetId = useNoteStore((state) => state.setSelectedPlanetId)
+  const isFocusMode = useNoteStore((state) => state.isFocusMode)
+  const setFocusMode = useNoteStore((state) => state.setFocusMode)
 
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [tagsRaw, setTagsRaw] = useState('')
   const [error, setError] = useState('')
-  const planets = useMemo(() => calculatePlanetStats(notes), [notes])
+
   const editingNote = useMemo(
     () => notes.find((note) => note.id === editingNoteId) ?? null,
     [notes, editingNoteId]
@@ -66,61 +68,91 @@ export function EditorPanel() {
   }
 
   return (
-    <aside className="panel">
+    <aside className="hud-sidebar" style={{ left: 0 }}>
       <div className="card">
-        <h2 className="title">StarNode / 写作舱{editingNote ? '（编辑模式）' : ''}</h2>
-        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="标题" />
-        <div className="hint-line">标题长度：{title.length} / {TITLE_MAX_LENGTH}</div>
+        <h2 className="title">
+          <span>{editingNote ? 'EDITING SIGNAL' : 'NEW TRANSMISSION'}</span>
+        </h2>
+        <input
+          className="input"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="SIGNAL TITLE"
+          style={{ fontWeight: 600, letterSpacing: '0.05em' }}
+        />
+        <div className="hint-line">LENGTH: {title.length} / {TITLE_MAX_LENGTH}</div>
+
         <textarea
           className="textarea"
-          rows={6}
+          rows={12}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit()
           }}
-          placeholder="记录你的想法..."
+          placeholder="ENTER MESSAGE CONTENT..."
+          style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}
         />
+
         <input
           className="input"
           value={tagsRaw}
           onChange={(e) => setTagsRaw(e.target.value)}
-          placeholder="标签（逗号分隔，如：ai,writing,research）"
+          placeholder="TAGS (comma separated)"
+          style={{ marginTop: 12 }}
         />
-        <div className="hint-line">标签数量：{parsedTags.length} / {TAG_MAX_COUNT}</div>
-        <div className="hint-line">关键词预览：</div>
+        <div className="hint-line">TAGS: {parsedTags.length} / {TAG_MAX_COUNT}</div>
+
+        <div className="hint-line" style={{ marginTop: 12, textAlign: 'left' }}>DETECTED KEYWORDS:</div>
         <div className="tag-chip-wrap">
           {keywordPreview.map((keyword) => (
-            <span key={keyword} className="tag-chip">
+            <span key={keyword} className="tag-chip active">
               {keyword}
             </span>
           ))}
-          {keywordPreview.length === 0 && <span className="overlay-subline">输入内容后自动提取</span>}
+          {keywordPreview.length === 0 && <span className="tag-chip" style={{ opacity: 0.5 }}>WAITING FOR INPUT...</span>}
         </div>
-        <select className="select" value={selectedPlanetId} onChange={(e) => setSelectedPlanetId(e.target.value)}>
+
+        <select
+          className="select"
+          value={selectedPlanetId}
+          onChange={(e) => setSelectedPlanetId(e.target.value)}
+          style={{ marginTop: 16 }}
+        >
           {PLANET_OPTIONS.map((planet) => (
             <option key={planet.id} value={planet.id}>
-              {planet.name}
+              SECTOR: {planet.name}
             </option>
           ))}
         </select>
-        <button className="button" onClick={submit} disabled={!canSubmit}>
-          {editingNote ? '保存修改' : '写入宇宙'}
-        </button>
-        {editingNote && (
-          <button className="button secondary-button" onClick={cancelEdit}>
-            取消编辑
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <button className="button" onClick={submit} disabled={!canSubmit}>
+            {editingNote ? 'UPDATE SIGNAL' : 'BROADCAST'}
           </button>
-        )}
+          {editingNote && (
+            <button className="button secondary-button" onClick={cancelEdit}>
+              CANCEL
+            </button>
+          )}
+          <button
+            className={`button secondary-button ${isFocusMode ? 'active' : ''}`}
+            onClick={() => setFocusMode(!isFocusMode)}
+            style={{ width: 'auto', paddingLeft: 12, paddingRight: 12 }}
+            title="Toggle Focus Mode"
+          >
+            {isFocusMode ? '⊙' : '○'}
+          </button>
+        </div>
+
         {error && <div className="error-text">{error}</div>}
       </div>
-      <div className="card">
-        <h3 className="title">星球概览</h3>
-        {planets.map((planet) => (
-          <div key={planet.id}>
-            {planet.name} / 笔记 {planet.noteCount} / 阶段 {planet.stage}
-          </div>
-        ))}
+
+      <div className="card" style={{ marginTop: 'auto' }}>
+        <div className="hint-line" style={{ textAlign: 'center', opacity: 0.7 }}>
+          SYSTEM STATUS: ONLINE <br />
+          CONNECTION: SECURE
+        </div>
       </div>
     </aside>
   )

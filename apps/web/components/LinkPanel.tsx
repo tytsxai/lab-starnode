@@ -34,13 +34,13 @@ export function LinkPanel({
           全部
         </button>
         <button className={`mini-button ${linkMode === 'tag' ? 'mini-button-active' : ''}`} onClick={() => onChangeLinkMode('tag')}>
-          仅标签
+          纯标签（无关键词）
         </button>
         <button
           className={`mini-button ${linkMode === 'keyword' ? 'mini-button-active' : ''}`}
           onClick={() => onChangeLinkMode('keyword')}
         >
-          仅关键词
+          纯关键词（无标签）
         </button>
         <button
           className={`mini-button ${linkMode === 'mixed' ? 'mini-button-active' : ''}`}
