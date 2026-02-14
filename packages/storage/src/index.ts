@@ -182,6 +182,15 @@ function bindLifecycleFlush(): void {
   lifecycleFlushBound = true
 }
 
+function clearPendingSave(): void {
+  if (typeof window === 'undefined') return
+  if (pendingSaveTimer !== null) {
+    window.clearTimeout(pendingSaveTimer)
+  }
+  pendingSaveTimer = null
+  pendingNotes = null
+}
+
 export function saveNotes(notes: Note[]): void {
   if (typeof window === 'undefined') return
 
@@ -203,6 +212,11 @@ export function subscribeNotes(onChange: (notes: Note[]) => void): () => void {
     if (event.storageArea && event.storageArea !== window.localStorage) return
     // key === null 代表外部标签页调用了 localStorage.clear()，需要回收本地状态。
     if (event.key !== STORAGE_KEY && event.key !== null) return
+
+    // 跨标签页一致性原则：持久化层是单一事实源。
+    // 若本标签页存在节流中的待写入快照，此时必须丢弃，
+    // 否则会在稍后 flush 时把“旧世界线”重新写回 localStorage。
+    clearPendingSave()
 
     // 仅处理其他标签页变更；当前标签页写入不会触发该事件。
     if (event.key === null || !event.newValue) {

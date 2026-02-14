@@ -146,6 +146,36 @@ describe('storage migration and throttle', () => {
     unsubscribe()
   })
 
+  it('should drop throttled pending save when external change arrives', () => {
+    vi.useFakeTimers()
+
+    const localDraft = [createNote({ id: 'local', title: 'local-draft' })]
+    const externalPayload = {
+      schemaVersion: 3,
+      notes: [createNote({ id: 'external', title: 'external-wins' })]
+    }
+
+    saveNotes(localDraft)
+
+    const onChange = vi.fn()
+    const unsubscribe = subscribeNotes(onChange)
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'starnode:notes',
+        newValue: JSON.stringify(externalPayload)
+      })
+    )
+
+    // 如果没有丢弃 pending save，这里 advance 后会被 local-draft 覆盖。
+    vi.advanceTimersByTime(300)
+
+    const raw = window.localStorage.getItem('starnode:notes')
+    expect(raw).toBeNull()
+    expect(onChange).toHaveBeenCalledWith(externalPayload.notes)
+    unsubscribe()
+  })
+
   it('should notify empty list when storage key removed in another tab', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeNotes(onChange)
