@@ -32,7 +32,7 @@ export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
     uuid: customDeps.uuid ?? (() => crypto.randomUUID())
   }
 
-  return create<NoteState>((set) => ({
+  const store = create<NoteState>((set) => ({
     notes: resolveInitialNotes(deps.storage),
     selectedPlanetId: 'p-life',
     editingNoteId: null,
@@ -111,4 +111,55 @@ export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
       })
     }
   }))
+
+  deps.storage.subscribeNotes?.((externalNotes) => {
+    store.setState((state) => {
+      if (areNotesEqual(state.notes, externalNotes)) return state
+
+      // 跨标签页同步策略：
+      // 1) 以持久化层为单一事实源（last persisted state wins）
+      // 2) 外部数据覆盖本地 notes，避免多标签页分叉
+      // 3) 清理失效编辑态与撤销快照，防止“基于旧世界线”的误操作
+      const nextEditingNoteId =
+        state.editingNoteId && externalNotes.some((note) => note.id === state.editingNoteId) ? state.editingNoteId : null
+
+      return {
+        notes: externalNotes,
+        editingNoteId: nextEditingNoteId,
+        undoSnapshot: null
+      }
+    })
+  })
+
+  return store
+}
+
+function areNotesEqual(a: NoteState['notes'], b: NoteState['notes']): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+
+  // 这里采用 O(n) 深比较，用于抑制无效 setState（避免外部同步造成渲染抖动）。
+  // 当前列表规模为笔记级别，复杂度可接受。
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i]
+    const right = b[i]
+    if (
+      left.id !== right.id ||
+      left.title !== right.title ||
+      left.content !== right.content ||
+      left.planetId !== right.planetId ||
+      left.updatedAt !== right.updatedAt ||
+      left.isFrozen !== right.isFrozen ||
+      left.frozenAt !== right.frozenAt
+    ) {
+      return false
+    }
+
+    if (left.tags.length !== right.tags.length) return false
+    for (let j = 0; j < left.tags.length; j += 1) {
+      if (left.tags[j] !== right.tags[j]) return false
+    }
+  }
+
+  return true
 }

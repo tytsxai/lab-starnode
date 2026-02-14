@@ -20,13 +20,23 @@ function createNote(input: Partial<Note> & Pick<Note, 'id'>): Note {
 
 describe('useNoteStore command behavior', () => {
   let saveNotesSpy: ReturnType<typeof vi.fn>
+  let subscribeNotesSpy: ReturnType<typeof vi.fn>
+  let externalChangeHandler: ((notes: Note[]) => void) | null
   let store: ReturnType<typeof createNoteStore>
 
   beforeEach(() => {
     saveNotesSpy = vi.fn()
+    externalChangeHandler = null
+    subscribeNotesSpy = vi.fn((onChange: (notes: Note[]) => void) => {
+      externalChangeHandler = onChange
+      return () => {
+        externalChangeHandler = null
+      }
+    })
     const storage: NoteStorageAdapter = {
       loadNotes: () => [],
-      saveNotes: saveNotesSpy
+      saveNotes: saveNotesSpy,
+      subscribeNotes: subscribeNotesSpy
     }
 
     store = createNoteStore({
@@ -34,6 +44,10 @@ describe('useNoteStore command behavior', () => {
       now: () => '2026-02-14T08:00:00.000Z',
       uuid: () => 'generated-id'
     })
+  })
+
+  it('createNoteStore 应注册外部存储订阅以支持多标签页同步', () => {
+    expect(subscribeNotesSpy).toHaveBeenCalledTimes(1)
   })
 
   it('moveNotes no-op 时不落盘', () => {
@@ -141,5 +155,28 @@ describe('useNoteStore command behavior', () => {
     expect(store.getState().notes).toHaveLength(before)
     expect(saveNotesSpy).not.toHaveBeenCalled()
     expect(store.getState().undoSnapshot).toBeNull()
+  })
+
+  it('外部存储更新后应同步笔记并清空失效编辑态/撤销快照', () => {
+    store.setState({
+      notes: [createNote({ id: '1', title: 'old' })],
+      selectedPlanetId: 'p-life',
+      editingNoteId: '1',
+      undoSnapshot: {
+        notes: [createNote({ id: 'shadow' })],
+        selectedPlanetId: 'p-life',
+        editingNoteId: null,
+        message: 'undo'
+      },
+      isFocusMode: false
+    })
+
+    externalChangeHandler?.([createNote({ id: '2', title: 'from-external' })])
+
+    const state = store.getState()
+    expect(state.notes).toHaveLength(1)
+    expect(state.notes[0].id).toBe('2')
+    expect(state.editingNoteId).toBeNull()
+    expect(state.undoSnapshot).toBeNull()
   })
 })
