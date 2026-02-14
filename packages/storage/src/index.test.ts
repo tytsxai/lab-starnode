@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Note } from '@starnode/core'
-import { loadNotes, saveNotes, subscribeNotes } from './index'
+import { hasNotesSnapshot, loadNotes, saveNotes, subscribeNotes } from './index'
 
 function createNote(input: Partial<Note> & Pick<Note, 'id'>): Note {
   return {
@@ -66,6 +66,21 @@ describe('storage migration and throttle', () => {
     expect(Array.isArray(rewritten.notes)).toBe(true)
   })
 
+  it('should distinguish missing snapshot from persisted empty notes', () => {
+    expect(hasNotesSnapshot()).toBe(false)
+
+    window.localStorage.setItem(
+      'starnode:notes',
+      JSON.stringify({
+        schemaVersion: 3,
+        notes: []
+      })
+    )
+
+    expect(loadNotes()).toEqual([])
+    expect(hasNotesSnapshot()).toBe(true)
+  })
+
   it('should sanitize invalid planetId and updatedAt when loading', () => {
     window.localStorage.setItem(
       'starnode:notes',
@@ -108,6 +123,9 @@ describe('storage migration and throttle', () => {
     const payload = JSON.parse(raw ?? '{}')
     expect(payload.schemaVersion).toBe(3)
     expect(payload.notes[0].title).toBe('second')
+    expect(payload.revision).toBe(1)
+    expect(typeof payload.writerId).toBe('string')
+    expect(payload.writerId.length).toBeGreaterThan(0)
   })
 
   it('should flush pending notes on pagehide before throttle timeout', () => {
@@ -131,6 +149,9 @@ describe('storage migration and throttle', () => {
 
     const payload = {
       schemaVersion: 3,
+      revision: 1,
+      writtenAt: 1000,
+      writerId: 'writer-external',
       notes: [createNote({ id: 'x', title: 'external' })]
     }
     window.dispatchEvent(
@@ -146,12 +167,47 @@ describe('storage migration and throttle', () => {
     unsubscribe()
   })
 
+  it('should ignore stale storage event when a newer snapshot already exists', () => {
+    const onChange = vi.fn()
+    const unsubscribe = subscribeNotes(onChange)
+
+    window.localStorage.setItem(
+      'starnode:notes',
+      JSON.stringify({
+        schemaVersion: 3,
+        revision: 4,
+        writtenAt: 4000,
+        writerId: 'writer-new',
+        notes: [createNote({ id: 'new', title: 'newer' })]
+      })
+    )
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'starnode:notes',
+        newValue: JSON.stringify({
+          schemaVersion: 3,
+          revision: 3,
+          writtenAt: 3000,
+          writerId: 'writer-old',
+          notes: [createNote({ id: 'old', title: 'older' })]
+        })
+      })
+    )
+
+    expect(onChange).not.toHaveBeenCalled()
+    unsubscribe()
+  })
+
   it('should drop throttled pending save when external change arrives', () => {
     vi.useFakeTimers()
 
     const localDraft = [createNote({ id: 'local', title: 'local-draft' })]
     const externalPayload = {
       schemaVersion: 3,
+      revision: 1,
+      writtenAt: 1000,
+      writerId: 'writer-external',
       notes: [createNote({ id: 'external', title: 'external-wins' })]
     }
 

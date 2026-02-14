@@ -6,10 +6,25 @@ const SAVE_THROTTLE_MS = 300
 const FALLBACK_PLANET_ID = PLANET_CONFIGS[0]?.id ?? 'p-life'
 const VALID_PLANET_IDS = new Set(PLANET_CONFIGS.map((planet) => planet.id))
 const FALLBACK_UPDATED_AT = '1970-01-01T00:00:00.000Z'
+const EMPTY_VERSION: SnapshotVersion = {
+  revision: 0,
+  writtenAt: 0,
+  writerId: ''
+}
+const SESSION_WRITER_ID = createSessionWriterId()
+
+interface SnapshotVersion {
+  revision: number
+  writtenAt: number
+  writerId: string
+}
 
 interface StoragePayloadV3 {
   schemaVersion: 3
   notes: Note[]
+  revision?: number
+  writtenAt?: number
+  writerId?: string
 }
 
 interface LegacyNoteV1 {
@@ -35,10 +50,67 @@ let lifecycleFlushBound = false
 interface ParsedStorageResult {
   notes: Note[]
   needsRewrite: boolean
+  version: SnapshotVersion
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function createSessionWriterId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `writer-${Math.random().toString(36).slice(2)}`
+}
+
+function compareSnapshotVersion(left: SnapshotVersion, right: SnapshotVersion): number {
+  if (left.revision !== right.revision) return left.revision - right.revision
+  if (left.writtenAt !== right.writtenAt) return left.writtenAt - right.writtenAt
+  if (left.writerId === right.writerId) return 0
+  return left.writerId > right.writerId ? 1 : -1
+}
+
+function parseSnapshotVersion(value: Record<string, unknown>): SnapshotVersion {
+  const revision = typeof value.revision === 'number' && Number.isFinite(value.revision) ? Math.max(0, value.revision) : 0
+  const writtenAt = typeof value.writtenAt === 'number' && Number.isFinite(value.writtenAt) ? Math.max(0, value.writtenAt) : 0
+  const writerId = typeof value.writerId === 'string' ? value.writerId : ''
+
+  return {
+    revision,
+    writtenAt,
+    writerId
+  }
+}
+
+function buildPayload(notes: Note[], version: SnapshotVersion): StoragePayloadV3 {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    notes,
+    revision: version.revision,
+    writtenAt: version.writtenAt,
+    writerId: version.writerId
+  }
+}
+
+function readPersistedVersion(): SnapshotVersion {
+  if (typeof window === 'undefined') return EMPTY_VERSION
+  const raw = window.localStorage.getItem(STORAGE_KEY)
+  if (!raw) return EMPTY_VERSION
+
+  try {
+    return parsePayload(raw).version
+  } catch {
+    return EMPTY_VERSION
+  }
+}
+
+function createNextVersion(baseVersion: SnapshotVersion): SnapshotVersion {
+  return {
+    revision: baseVersion.revision + 1,
+    writtenAt: Date.now(),
+    writerId: SESSION_WRITER_ID
+  }
 }
 
 function normalizeNote(value: Record<string, unknown>): Note | null {
@@ -93,29 +165,33 @@ function parsePayload(raw: string): ParsedStorageResult {
     const v2 = migrateV1ToV2(parsed as LegacyNoteV1[])
     return {
       notes: migrateV2ToV3(v2),
-      needsRewrite: true
+      needsRewrite: true,
+      version: EMPTY_VERSION
     }
   }
 
   if (!isRecord(parsed)) {
-    return { notes: [], needsRewrite: true }
+    return { notes: [], needsRewrite: true, version: EMPTY_VERSION }
   }
 
   const schemaVersion = typeof parsed.schemaVersion === 'number' ? parsed.schemaVersion : 1
   const rawNotes = Array.isArray(parsed.notes) ? parsed.notes : []
+  const version = parseSnapshotVersion(parsed)
 
   if (schemaVersion <= 1) {
     const v2 = migrateV1ToV2(rawNotes as LegacyNoteV1[])
     return {
       notes: migrateV2ToV3(v2),
-      needsRewrite: true
+      needsRewrite: true,
+      version
     }
   }
 
   if (schemaVersion === 2) {
     return {
       notes: migrateV2ToV3(rawNotes as LegacyNoteV2[]),
-      needsRewrite: true
+      needsRewrite: true,
+      version
     }
   }
 
@@ -123,7 +199,8 @@ function parsePayload(raw: string): ParsedStorageResult {
     needsRewrite: schemaVersion !== SCHEMA_VERSION,
     notes: (rawNotes as Array<Partial<Note>>)
       .map((note) => normalizeNote(note as unknown as Record<string, unknown>))
-      .filter((note): note is Note => note !== null)
+      .filter((note): note is Note => note !== null),
+    version
   }
 }
 
@@ -137,13 +214,7 @@ export function loadNotes(): Note[] {
 
     // 读时迁移，确保后续写入统一为最新版本。
     if (payload.needsRewrite) {
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          schemaVersion: SCHEMA_VERSION,
-          notes: payload.notes
-        } satisfies StoragePayloadV3)
-      )
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(buildPayload(payload.notes, payload.version)))
     }
 
     return payload.notes
@@ -152,14 +223,18 @@ export function loadNotes(): Note[] {
   }
 }
 
+export function hasNotesSnapshot(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem(STORAGE_KEY) !== null
+}
+
 function flushNotes(): void {
   if (typeof window === 'undefined') return
   if (!pendingNotes) return
 
-  const payload: StoragePayloadV3 = {
-    schemaVersion: SCHEMA_VERSION,
-    notes: pendingNotes
-  }
+  const persistedVersion = readPersistedVersion()
+  const nextVersion = createNextVersion(persistedVersion)
+  const payload = buildPayload(pendingNotes, nextVersion)
 
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   pendingNotes = null
@@ -225,8 +300,17 @@ export function subscribeNotes(onChange: (notes: Note[]) => void): () => void {
     }
 
     try {
-      const payload = parsePayload(event.newValue)
-      onChange(payload.notes)
+      const incoming = parsePayload(event.newValue)
+
+      // 防御式校验：若事件载荷落后于当前 localStorage 快照，则直接丢弃。
+      // 该分支可规避极端时序下的陈旧事件回放。
+      const currentRaw = window.localStorage.getItem(STORAGE_KEY)
+      if (currentRaw) {
+        const current = parsePayload(currentRaw)
+        if (compareSnapshotVersion(incoming.version, current.version) < 0) return
+      }
+
+      onChange(incoming.notes)
     } catch {
       // 非法数据直接忽略，避免污染当前会话状态。
     }
