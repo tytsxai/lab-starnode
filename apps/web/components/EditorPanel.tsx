@@ -33,13 +33,24 @@ export function EditorPanel() {
   }, [content, tagsRaw, title])
 
   useEffect(() => {
-    if (!editingNote) return
-    setTitle(editingNote.title)
-    setContent(editingNote.content)
-    setTagsRaw(editingNote.tags.join(','))
-    setSelectedPlanetId(editingNote.planetId)
-    setError('')
-  }, [editingNote, setSelectedPlanetId])
+    if (editingNote) {
+      setTitle(editingNote.title)
+      setContent(editingNote.content)
+      setTagsRaw(editingNote.tags.join(','))
+      setSelectedPlanetId(editingNote.planetId)
+      setError('')
+      return
+    }
+
+    // 目标笔记被删除或不可用时，主动清理编辑表单，避免残留脏状态误提交。
+    if (editingNoteId) {
+      cancelEditNote()
+      setTitle('')
+      setContent('')
+      setTagsRaw('')
+      setError('')
+    }
+  }, [cancelEditNote, editingNote, editingNoteId, setSelectedPlanetId])
 
   const submit = () => {
     const validation = validateNoteInput({ title, content, tagsRaw })

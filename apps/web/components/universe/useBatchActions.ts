@@ -47,17 +47,23 @@ export function useBatchActions(deps: BatchActionDeps) {
   }
 
   const handleBatchDelete = (selectedNoteIds: string[]) => {
+    // 只按“当前仍存在”的笔记确认数量，避免提示与真实结果不一致。
     const deletableCount = selectedNoteIds.filter((id) => deps.selectedNoteMap.has(id)).length
     if (deletableCount === 0) {
       deps.notify('没有可删除的笔记')
       return
     }
 
-    const ok = deps.confirm(`确认删除选中的 ${selectedNoteIds.length} 条笔记吗？此操作可撤销一次。`)
+    const ok = deps.confirm(`确认删除选中的 ${deletableCount} 条笔记吗？此操作可撤销一次。`)
     if (!ok) return
 
-    deps.deleteNotes(selectedNoteIds)
-    deps.notify(`已删除 ${deletableCount} 条笔记`)
+    const deletedCount = deps.deleteNotes(selectedNoteIds)
+    if (deletedCount === 0) {
+      deps.notify('没有可删除的笔记')
+      return
+    }
+
+    deps.notify(`已删除 ${deletedCount} 条笔记`)
     deps.clearSelection()
   }
 

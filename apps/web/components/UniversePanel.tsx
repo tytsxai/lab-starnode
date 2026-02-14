@@ -92,6 +92,11 @@ export function UniversePanel() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
+  useEffect(() => {
+    // 过滤切换/外部同步后，主动清理已不存在的选中项，防止批量操作误报数量。
+    setSelectedNoteIds((prev) => prev.filter((id) => selectedNoteMap.has(id)))
+  }, [selectedNoteMap])
+
   const toggleNoteSelection = (noteId: string) => {
     setSelectedNoteIds((prev) => {
       if (prev.includes(noteId)) return prev.filter((id) => id !== noteId)

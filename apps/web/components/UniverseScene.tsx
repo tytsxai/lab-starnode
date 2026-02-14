@@ -10,9 +10,9 @@ export function UniverseScene() {
   const selectedPlanetId = useNoteStore((state) => state.selectedPlanetId)
   const setSelectedPlanetId = useNoteStore((state) => state.setSelectedPlanetId)
 
-  // 暂时展示全量宇宙（含冰封笔记），后续可按 HUD 查询状态收敛显示范围。
-  const planets = useMemo(() => calculatePlanetStats(notes, { includeFrozen: true }), [notes])
-  const links = useMemo(() => calculatePlanetLinks(notes, { includeFrozen: true }), [notes])
+  // 默认仅统计活跃笔记，保证与面板行为一致。
+  const planets = useMemo(() => calculatePlanetStats(notes), [notes])
+  const links = useMemo(() => calculatePlanetLinks(notes), [notes])
 
   return (
     <PlanetCanvas
