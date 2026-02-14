@@ -13,8 +13,17 @@ interface BatchActionDeps {
 }
 
 export function useBatchActions(deps: BatchActionDeps) {
+  const pickExistingIds = (selectedNoteIds: string[]): string[] =>
+    selectedNoteIds.filter((id) => deps.selectedNoteMap.has(id))
+
   const handleBatchMove = (selectedNoteIds: string[], targetPlanetId: string) => {
-    const movedCount = deps.moveNotes(selectedNoteIds, targetPlanetId)
+    const targetIds = pickExistingIds(selectedNoteIds)
+    if (targetIds.length === 0) {
+      deps.notify('没有可迁移的笔记')
+      return
+    }
+
+    const movedCount = deps.moveNotes(targetIds, targetPlanetId)
     if (movedCount === 0) {
       deps.notify('没有可迁移的笔记')
       return
@@ -25,7 +34,13 @@ export function useBatchActions(deps: BatchActionDeps) {
   }
 
   const handleBatchFreeze = (selectedNoteIds: string[]) => {
-    const freezeCount = deps.setNotesFrozen(selectedNoteIds, true)
+    const targetIds = pickExistingIds(selectedNoteIds)
+    if (targetIds.length === 0) {
+      deps.notify('没有可冰封的笔记')
+      return
+    }
+
+    const freezeCount = deps.setNotesFrozen(targetIds, true)
     if (freezeCount === 0) {
       deps.notify('没有可冰封的笔记')
       return
@@ -36,7 +51,13 @@ export function useBatchActions(deps: BatchActionDeps) {
   }
 
   const handleBatchUnfreeze = (selectedNoteIds: string[]) => {
-    const unfreezeCount = deps.setNotesFrozen(selectedNoteIds, false)
+    const targetIds = pickExistingIds(selectedNoteIds)
+    if (targetIds.length === 0) {
+      deps.notify('没有可解冻的笔记')
+      return
+    }
+
+    const unfreezeCount = deps.setNotesFrozen(targetIds, false)
     if (unfreezeCount === 0) {
       deps.notify('没有可解冻的笔记')
       return
@@ -47,17 +68,17 @@ export function useBatchActions(deps: BatchActionDeps) {
   }
 
   const handleBatchDelete = (selectedNoteIds: string[]) => {
-    // 只按“当前仍存在”的笔记确认数量，避免提示与真实结果不一致。
-    const deletableCount = selectedNoteIds.filter((id) => deps.selectedNoteMap.has(id)).length
-    if (deletableCount === 0) {
+    // 只操作“当前仍存在”的笔记，彻底规避陈旧选择集误删风险。
+    const targetIds = pickExistingIds(selectedNoteIds)
+    if (targetIds.length === 0) {
       deps.notify('没有可删除的笔记')
       return
     }
 
-    const ok = deps.confirm(`确认删除选中的 ${deletableCount} 条笔记吗？此操作可撤销一次。`)
+    const ok = deps.confirm(`确认删除选中的 ${targetIds.length} 条笔记吗？此操作可撤销一次。`)
     if (!ok) return
 
-    const deletedCount = deps.deleteNotes(selectedNoteIds)
+    const deletedCount = deps.deleteNotes(targetIds)
     if (deletedCount === 0) {
       deps.notify('没有可删除的笔记')
       return

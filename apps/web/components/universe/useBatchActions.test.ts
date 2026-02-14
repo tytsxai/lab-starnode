@@ -36,8 +36,74 @@ describe('useBatchActions', () => {
     handleBatchDelete(['n-1', 'ghost'])
 
     expect(confirm).toHaveBeenCalledWith('确认删除选中的 1 条笔记吗？此操作可撤销一次。')
-    expect(deleteNotes).toHaveBeenCalledWith(['n-1', 'ghost'])
+    expect(deleteNotes).toHaveBeenCalledWith(['n-1'])
     expect(notify).toHaveBeenCalledWith('已删除 1 条笔记')
+    expect(clearSelection).toHaveBeenCalledTimes(1)
+  })
+
+  it('批量迁移应忽略不存在的选中项，避免作用到陈旧选择集', () => {
+    const moveNotes = vi.fn(() => 1)
+    const notify = vi.fn()
+    const clearSelection = vi.fn()
+
+    const { handleBatchMove } = useBatchActions({
+      selectedNoteMap: new Map<string, Note>([['n-1', createNote('n-1')]]),
+      moveNotes,
+      setNotesFrozen: vi.fn(),
+      deleteNotes: vi.fn(),
+      clearSelection,
+      notify,
+      confirm: vi.fn(() => true)
+    })
+
+    handleBatchMove(['n-1', 'ghost'], 'p-tech')
+
+    expect(moveNotes).toHaveBeenCalledWith(['n-1'], 'p-tech')
+    expect(notify).toHaveBeenCalledWith('已迁移 1 条笔记')
+    expect(clearSelection).toHaveBeenCalledTimes(1)
+  })
+
+  it('批量冰封应忽略不存在的选中项，避免误操作', () => {
+    const setNotesFrozen = vi.fn(() => 1)
+    const notify = vi.fn()
+    const clearSelection = vi.fn()
+
+    const { handleBatchFreeze } = useBatchActions({
+      selectedNoteMap: new Map<string, Note>([['n-1', createNote('n-1')]]),
+      moveNotes: vi.fn(),
+      setNotesFrozen,
+      deleteNotes: vi.fn(),
+      clearSelection,
+      notify,
+      confirm: vi.fn(() => true)
+    })
+
+    handleBatchFreeze(['n-1', 'ghost'])
+
+    expect(setNotesFrozen).toHaveBeenCalledWith(['n-1'], true)
+    expect(notify).toHaveBeenCalledWith('已冰封 1 条笔记')
+    expect(clearSelection).toHaveBeenCalledTimes(1)
+  })
+
+  it('批量解冻应忽略不存在的选中项，避免误操作', () => {
+    const setNotesFrozen = vi.fn(() => 1)
+    const notify = vi.fn()
+    const clearSelection = vi.fn()
+
+    const { handleBatchUnfreeze } = useBatchActions({
+      selectedNoteMap: new Map<string, Note>([['n-1', createNote('n-1')]]),
+      moveNotes: vi.fn(),
+      setNotesFrozen,
+      deleteNotes: vi.fn(),
+      clearSelection,
+      notify,
+      confirm: vi.fn(() => true)
+    })
+
+    handleBatchUnfreeze(['n-1', 'ghost'])
+
+    expect(setNotesFrozen).toHaveBeenCalledWith(['n-1'], false)
+    expect(notify).toHaveBeenCalledWith('已解冻 1 条笔记')
     expect(clearSelection).toHaveBeenCalledTimes(1)
   })
 

@@ -58,6 +58,8 @@ export function LinkPanel({
             tabIndex={0}
             onClick={() => onSelectPlanet(link.sourcePlanetId)}
             onKeyDown={(event) => {
+              // 仅在容器本身聚焦时响应键盘，避免子按钮按键冒泡触发误跳转。
+              if (event.currentTarget !== event.target) return
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault()
                 onSelectPlanet(link.sourcePlanetId)
