@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { normalizeTags, type Note } from '@starnode/core'
 import { loadNotes, saveNotes } from '@starnode/storage'
+import { countExistingNotes, countFreezableNotes, countMovableNotes, mapNotesBySelection } from './batchHelpers'
 
 interface UndoSnapshot {
   notes: Note[]
@@ -21,10 +22,10 @@ interface NoteState {
   cancelEditNote: () => void
   addNote: (input: { title: string; content: string; tagsRaw: string; planetId: string }) => void
   updateNote: (input: { noteId: string; title: string; content: string; tagsRaw: string; planetId: string }) => void
-  deleteNote: (noteId: string) => void
-  deleteNotes: (noteIds: string[]) => void
-  moveNotes: (noteIds: string[], targetPlanetId: string) => void
-  setNotesFrozen: (noteIds: string[], isFrozen: boolean) => void
+  deleteNote: (noteId: string) => number
+  deleteNotes: (noteIds: string[]) => number
+  moveNotes: (noteIds: string[], targetPlanetId: string) => number
+  setNotesFrozen: (noteIds: string[], isFrozen: boolean) => number
   undoLastAction: () => void
 }
 
@@ -106,9 +107,11 @@ export const useNoteStore = create<NoteState>((set) => ({
     })
   },
   deleteNote: (noteId) => {
+    let changedCount = 0
     set((state) => {
       const exists = state.notes.some((note) => note.id === noteId)
       if (!exists) return state
+      changedCount = 1
       const notes = state.notes.filter((note) => note.id !== noteId)
       saveNotes(notes)
       return {
@@ -122,13 +125,16 @@ export const useNoteStore = create<NoteState>((set) => ({
         }
       }
     })
+    return changedCount
   },
   deleteNotes: (noteIds) => {
-    if (noteIds.length === 0) return
-    const idSet = new Set(noteIds)
+    if (noteIds.length === 0) return 0
+    let changedCount = 0
     set((state) => {
-      const affectedCount = state.notes.reduce((count, note) => (idSet.has(note.id) ? count + 1 : count), 0)
+      const affectedCount = countExistingNotes(state.notes, noteIds)
       if (affectedCount === 0) return state
+      changedCount = affectedCount
+      const idSet = new Set(noteIds)
       const notes = state.notes.filter((note) => !idSet.has(note.id))
       saveNotes(notes)
       return {
@@ -142,25 +148,22 @@ export const useNoteStore = create<NoteState>((set) => ({
         }
       }
     })
+    return changedCount
   },
   moveNotes: (noteIds, targetPlanetId) => {
-    if (noteIds.length === 0) return
-
-    const idSet = new Set(noteIds)
+    if (noteIds.length === 0) return 0
+    let changedCount = 0
     set((state) => {
-      const affectedCount = state.notes.reduce((count, note) => {
-        if (!idSet.has(note.id)) return count
-        return note.planetId === targetPlanetId ? count : count + 1
-      }, 0)
+      const affectedCount = countMovableNotes(state.notes, noteIds, targetPlanetId)
       if (affectedCount === 0) return state
+      changedCount = affectedCount
 
-      const notes = state.notes.map((note) => {
-        if (!idSet.has(note.id)) return note
+      const { notes } = mapNotesBySelection(state.notes, noteIds, (note, now) => {
         if (note.planetId === targetPlanetId) return note
         return {
           ...note,
           planetId: targetPlanetId,
-          updatedAt: new Date().toISOString()
+          updatedAt: now
         }
       })
       saveNotes(notes)
@@ -175,20 +178,17 @@ export const useNoteStore = create<NoteState>((set) => ({
         }
       }
     })
+    return changedCount
   },
   setNotesFrozen: (noteIds, isFrozen) => {
-    if (noteIds.length === 0) return
-    const idSet = new Set(noteIds)
+    if (noteIds.length === 0) return 0
+    let changedCount = 0
     set((state) => {
-      const changedCount = state.notes.reduce((count, note) => {
-        if (!idSet.has(note.id)) return count
-        return note.isFrozen === isFrozen ? count : count + 1
-      }, 0)
-      if (changedCount === 0) return state
+      const affectedCount = countFreezableNotes(state.notes, noteIds, isFrozen)
+      if (affectedCount === 0) return state
 
-      const now = new Date().toISOString()
-      const notes = state.notes.map((note) => {
-        if (!idSet.has(note.id)) return note
+      changedCount = affectedCount
+      const { notes } = mapNotesBySelection(state.notes, noteIds, (note, now) => {
         if (note.isFrozen === isFrozen) return note
         return {
           ...note,
@@ -204,10 +204,11 @@ export const useNoteStore = create<NoteState>((set) => ({
           notes: state.notes,
           selectedPlanetId: state.selectedPlanetId,
           editingNoteId: state.editingNoteId,
-          message: isFrozen ? `已冰封 ${changedCount} 条笔记` : `已解冻 ${changedCount} 条笔记`
+          message: isFrozen ? `已冰封 ${affectedCount} 条笔记` : `已解冻 ${affectedCount} 条笔记`
         }
       }
     })
+    return changedCount
   },
   undoLastAction: () => {
     set((state) => {
