@@ -1,0 +1,21 @@
+{
+  "name": "@starnode/renderer",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.tsx",
+  "types": "src/index.tsx",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.17.14",
+    "@starnode/core": "0.1.0",
+    "react": "^18.3.1",
+    "three": "^0.173.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "5.5.4"
+  }
+}

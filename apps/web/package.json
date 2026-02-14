@@ -1,0 +1,36 @@
+{
+  "name": "@starnode/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "check:node": "node ../../scripts/check-node-version.mjs",
+    "predev": "npm run check:node",
+    "prebuild": "npm run check:node",
+    "pretypecheck": "npm run check:node",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.17.14",
+    "@starnode/core": "0.1.0",
+    "@starnode/renderer": "0.1.0",
+    "next": "^14.2.24",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.173.0",
+    "zustand": "^5.0.3",
+    "@starnode/storage": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.24",
+    "typescript": "5.5.4"
+  }
+}

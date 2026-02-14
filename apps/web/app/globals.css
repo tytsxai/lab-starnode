@@ -1,0 +1,297 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #05070f;
+  color: #e6ebff;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+}
+
+.main {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  min-height: 100vh;
+}
+
+.panel {
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px;
+}
+
+.card {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 12px;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.input,
+.textarea,
+.select,
+.button {
+  width: 100%;
+  margin-top: 8px;
+  background: #0c1222;
+  color: #dce4ff;
+  border: 1px solid #263151;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.button {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.secondary-button {
+  margin-top: 8px;
+  background: #101a34;
+  border-color: #3a4e86;
+}
+
+.hint-line {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #93a2cf;
+}
+
+.error-text {
+  margin-top: 8px;
+  color: #ffb4c4;
+  font-size: 13px;
+}
+
+.canvas-wrap {
+  position: relative;
+  min-height: 100vh;
+}
+
+.overlay {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 320px;
+  max-height: 48vh;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(7, 11, 21, 0.82);
+  backdrop-filter: blur(4px);
+}
+
+.overlay-top {
+  top: 16px;
+  bottom: auto;
+}
+
+.overlay-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.ghost-button {
+  margin-bottom: 10px;
+  width: 100%;
+  border: 1px solid #344166;
+  background: #0d162f;
+  color: #c7d4ff;
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.overlay-list {
+  display: grid;
+  gap: 8px;
+}
+
+.compact-input {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.batch-bar {
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid #32446f;
+  border-radius: 8px;
+  background: rgba(75, 107, 177, 0.12);
+}
+
+.batch-text {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #b9c9f5;
+}
+
+.batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.undo-bar {
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid #3f4f7f;
+  border-radius: 8px;
+  background: rgba(78, 98, 160, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tag-chip-wrap {
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-chip {
+  border: 1px solid #304566;
+  background: #0d182f;
+  color: #b9cbf5;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tag-chip-active {
+  border-color: #5975ba;
+  background: #1b2e5d;
+  color: #e4edff;
+}
+
+.quick-actions {
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.overlay-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.overlay-item-column {
+  display: block;
+  cursor: pointer;
+}
+
+.overlay-item-active {
+  border: 1px solid #5f77bd;
+  box-shadow: inset 0 0 0 1px rgba(153, 178, 255, 0.25);
+}
+
+.overlay-note-title {
+  flex: 1;
+  font-size: 13px;
+  color: #d3dcff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overlay-note-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.overlay-subline {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #a8b6df;
+}
+
+.overlay-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.mini-button {
+  border: 1px solid #334769;
+  background: #0e1830;
+  color: #d7e4ff;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mini-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mini-button-active {
+  border-color: #5975ba;
+  background: #1b2e5d;
+  color: #e4edff;
+}
+
+.link-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.danger-button {
+  border: 1px solid #64313d;
+  background: #32131a;
+  color: #ffd6df;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.overlay-empty {
+  color: #9fb0dd;
+  font-size: 13px;
+}
+
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  border: 1px solid #425992;
+  background: rgba(20, 31, 61, 0.92);
+  color: #dce7ff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}

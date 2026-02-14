@@ -1,0 +1,20 @@
+{
+  "name": "starnode",
+  "private": true,
+  "version": "0.1.0",
+  "description": "StarNode monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "check:node": "node scripts/check-node-version.mjs",
+    "predev": "npm run check:node",
+    "prebuild": "npm run check:node",
+    "pretypecheck": "npm run check:node",
+    "dev": "npm run dev --workspace @starnode/web",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces"
+  }
+}
