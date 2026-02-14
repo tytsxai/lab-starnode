@@ -16,7 +16,7 @@ export function NoteListOverlay({
     <div className="overlay-list">
       {notes.slice(0, 50).map((note) => (
         <div key={note.id} className={`overlay-item ${editingNoteId === note.id ? 'active' : ''}`}>
-          <input type="checkbox" checked={selectedNoteIds.includes(note.id)} onChange={() => onToggleNoteSelection(note.id)} />
+          <input type="checkbox" checked={selectedNoteIds.has(note.id)} onChange={() => onToggleNoteSelection(note.id)} />
           <div className="overlay-note-main">
             <button className="link-button overlay-note-title" onClick={() => onStartEdit(note.id, note.planetId)}>
               {note.title}

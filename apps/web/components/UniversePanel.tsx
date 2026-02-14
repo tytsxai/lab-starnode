@@ -61,14 +61,26 @@ export function UniversePanel() {
       return hitTitle || hitContent || hitTag
     })
 
-    return [...list].sort((a, b) => {
-      if (query.sortBy === 'title_asc') return a.title.localeCompare(b.title)
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    })
+    if (query.sortBy === 'title_asc') {
+      return [...list].sort((a, b) => a.title.localeCompare(b.title))
+    }
+
+    // 预计算时间戳，避免在 comparator 中反复解析时间。
+    return list
+      .map((note) => {
+        const parsedMs = Date.parse(note.updatedAt)
+        return {
+          note,
+          updatedAtMs: Number.isFinite(parsedMs) ? parsedMs : 0
+        }
+      })
+      .sort((a, b) => b.updatedAtMs - a.updatedAtMs)
+      .map((item) => item.note)
   }, [query.activeTag, query.searchTerm, query.sortBy, query.visibilityMode, selectedNotes])
   const activeCount = useMemo(() => selectedNotes.filter((note) => !note.isFrozen).length, [selectedNotes])
   const frozenCount = selectedNotes.length - activeCount
   const hasSelected = selectedNoteIds.length > 0
+  const selectedNoteIdSet = useMemo(() => new Set(selectedNoteIds), [selectedNoteIds])
 
   const { handleBatchMove, handleBatchFreeze, handleBatchUnfreeze, handleBatchDelete } = useBatchActions({
     selectedNoteMap,
@@ -231,7 +243,7 @@ export function UniversePanel() {
           notes={filteredNotes}
           selectedNotesCount={selectedNotes.length}
           editingNoteId={editingNoteId}
-          selectedNoteIds={selectedNoteIds}
+          selectedNoteIds={selectedNoteIdSet}
           onToggleNoteSelection={toggleNoteSelection}
           onStartEdit={(noteId, planetId) => {
             startEditNote(noteId)

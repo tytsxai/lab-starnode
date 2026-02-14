@@ -14,7 +14,7 @@ export interface NoteListOverlayProps {
   notes: Note[]
   selectedNotesCount: number
   editingNoteId: string | null
-  selectedNoteIds: string[]
+  selectedNoteIds: ReadonlySet<string>
   onToggleNoteSelection: (noteId: string) => void
   onStartEdit: (noteId: string, planetId: string) => void
   onToggleFrozen: (note: Note) => void

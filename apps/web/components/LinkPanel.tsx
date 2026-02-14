@@ -55,7 +55,14 @@ export function LinkPanel({
             key={`${link.sourcePlanetId}-${link.targetPlanetId}`}
             className="overlay-item overlay-item-column"
             role="button"
+            tabIndex={0}
             onClick={() => onSelectPlanet(link.sourcePlanetId)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onSelectPlanet(link.sourcePlanetId)
+              }
+            }}
           >
             <div className="overlay-note-title">
               {(planetNameMap.get(link.sourcePlanetId) ?? link.sourcePlanetId) +

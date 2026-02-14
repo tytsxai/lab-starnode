@@ -17,7 +17,7 @@ export function useNoteFilterState() {
   const setSortBy = (sortBy: SortBy) => setQuery((prev) => ({ ...prev, sortBy }))
   const setActiveTag = (activeTag: string | null) => setQuery((prev) => ({ ...prev, activeTag }))
   const setVisibilityMode = (visibilityMode: VisibilityMode) => setQuery((prev) => ({ ...prev, visibilityMode }))
-  const resetFilters = () => setQuery((prev) => ({ ...prev, searchTerm: '', activeTag: null }))
+  const resetFilters = () => setQuery(initialQuery)
 
   return {
     query,
