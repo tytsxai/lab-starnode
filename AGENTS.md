@@ -43,7 +43,9 @@
    ├─ renderer/
    │  └─ src/index.tsx
    └─ storage/
-      └─ src/index.ts
+      └─ src/
+         ├─ index.ts
+         └─ index.test.ts
 ```
 
 ## 文件职责（一句话版）
@@ -66,6 +68,7 @@
 - `packages/core/src/index.test.ts`：核心规则测试（去噪、混合评分、冻结过滤、排序稳定性）。
 - `packages/renderer/src/index.tsx`：3D 宇宙渲染组件（支持连线与星球点击选中）。
 - `packages/storage/src/index.ts`：本地持久化（schemaVersion + 迁移管线 + 节流写入）。
+- `packages/storage/src/index.test.ts`：storage 迁移与节流写入回归测试（v1/v2 到 v3 的兼容验证）。
 - `.nvmrc`：统一 Node LTS 版本，降低 TypeScript 编译器异常风险。
 - `scripts/check-node-version.mjs`：Node 主版本门禁，阻断非 Node 22 环境下的开发/构建/类型检查。
 
@@ -118,3 +121,4 @@ apps/web
 - 2026-02-14：关联面板支持“仅标签/仅关键词/混合”筛选与证据词回填搜索。
 - 2026-02-14：抽离表单校验与批量计数 helper，并补齐 web/store 关键单测。
 - 2026-02-14：storage 增加 schemaVersion 迁移管线与节流保存；CI workflow 已在本地提交，待 `workflow` scope 权限后推送远端。
+- 2026-02-14：修复 storage 读时迁移未回写的逻辑漏洞，并新增迁移/节流测试覆盖。
