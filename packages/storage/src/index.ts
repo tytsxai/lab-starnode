@@ -28,6 +28,11 @@ type LegacyPayload = LegacyNoteV1[] | LegacyNoteV2[] | { schemaVersion?: number;
 let pendingSaveTimer: number | null = null
 let pendingNotes: Note[] | null = null
 
+interface ParsedStorageResult {
+  notes: Note[]
+  needsRewrite: boolean
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -69,20 +74,20 @@ function migrateV2ToV3(notes: LegacyNoteV2[]): Note[] {
     .filter((note): note is Note => note !== null)
 }
 
-function parsePayload(raw: string): StoragePayloadV3 {
+function parsePayload(raw: string): ParsedStorageResult {
   const parsed = JSON.parse(raw) as LegacyPayload
 
   // 兼容最早期纯数组结构（无 schemaVersion）
   if (Array.isArray(parsed)) {
     const v2 = migrateV1ToV2(parsed as LegacyNoteV1[])
     return {
-      schemaVersion: SCHEMA_VERSION,
-      notes: migrateV2ToV3(v2)
+      notes: migrateV2ToV3(v2),
+      needsRewrite: true
     }
   }
 
   if (!isRecord(parsed)) {
-    return { schemaVersion: SCHEMA_VERSION, notes: [] }
+    return { notes: [], needsRewrite: true }
   }
 
   const schemaVersion = typeof parsed.schemaVersion === 'number' ? parsed.schemaVersion : 1
@@ -91,20 +96,20 @@ function parsePayload(raw: string): StoragePayloadV3 {
   if (schemaVersion <= 1) {
     const v2 = migrateV1ToV2(rawNotes as LegacyNoteV1[])
     return {
-      schemaVersion: SCHEMA_VERSION,
-      notes: migrateV2ToV3(v2)
+      notes: migrateV2ToV3(v2),
+      needsRewrite: true
     }
   }
 
   if (schemaVersion === 2) {
     return {
-      schemaVersion: SCHEMA_VERSION,
-      notes: migrateV2ToV3(rawNotes as LegacyNoteV2[])
+      notes: migrateV2ToV3(rawNotes as LegacyNoteV2[]),
+      needsRewrite: true
     }
   }
 
   return {
-    schemaVersion: SCHEMA_VERSION,
+    needsRewrite: schemaVersion !== SCHEMA_VERSION,
     notes: (rawNotes as Array<Partial<Note>>)
       .map((note) => normalizeNote(note as unknown as Record<string, unknown>))
       .filter((note): note is Note => note !== null)
@@ -120,7 +125,7 @@ export function loadNotes(): Note[] {
     const payload = parsePayload(raw)
 
     // 读时迁移，确保后续写入统一为最新版本。
-    if (payload.schemaVersion !== SCHEMA_VERSION) {
+    if (payload.needsRewrite) {
       window.localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -146,6 +151,7 @@ function flushNotes(): void {
   }
 
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+  pendingNotes = null
   pendingSaveTimer = null
 }
 
