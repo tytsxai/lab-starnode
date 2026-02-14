@@ -21,11 +21,22 @@ export interface PlanetViewModel {
   color: string
 }
 
+export interface ScoreBreakdown {
+  tagScore: number
+  keywordScore: number
+  total: number
+}
+
 export interface PlanetLink {
   sourcePlanetId: string
   targetPlanetId: string
   strength: number
   sharedTags: string[]
+  sharedKeywords: string[]
+  keywordStrength: number
+  evidenceTags: string[]
+  evidenceKeywords: string[]
+  scoreBreakdown: ScoreBreakdown
 }
 
 export interface PlanetConfig {
@@ -33,6 +44,86 @@ export interface PlanetConfig {
   name: string
   color: string
 }
+
+export interface LinkCalculationOptions {
+  includeFrozen?: boolean
+  tagWeight?: number
+  keywordWeight?: number
+  maxEvidenceCount?: number
+}
+
+export interface PlanetStatsOptions {
+  includeFrozen?: boolean
+}
+
+const DEFAULT_TAG_WEIGHT = 2
+const DEFAULT_KEYWORD_WEIGHT = 1
+const DEFAULT_EVIDENCE_COUNT = 5
+const MIN_KEYWORD_LENGTH = 2
+const MAX_KEYWORDS_PER_NOTE = 12
+
+const STOPWORDS = new Set<string>([
+  'a',
+  'an',
+  'and',
+  'are',
+  'as',
+  'at',
+  'be',
+  'by',
+  'for',
+  'from',
+  'how',
+  'in',
+  'into',
+  'is',
+  'it',
+  'of',
+  'on',
+  'or',
+  'that',
+  'the',
+  'this',
+  'to',
+  'was',
+  'were',
+  'will',
+  'with',
+  'i',
+  'you',
+  'he',
+  'she',
+  'they',
+  'we',
+  '我',
+  '我们',
+  '你',
+  '你们',
+  '他',
+  '她',
+  '它',
+  '以及',
+  '并且',
+  '如果',
+  '因为',
+  '所以',
+  '但是',
+  '然后',
+  '这个',
+  '那个',
+  '一个',
+  '一些',
+  '没有',
+  '可以',
+  '需要',
+  '已经',
+  '还是',
+  '就是',
+  '还有',
+  '进行',
+  '通过',
+  '关于'
+])
 
 export const PLANET_CONFIGS: PlanetConfig[] = [
   { id: 'p-life', name: '生活星球', color: '#4ecdc4' },
@@ -46,11 +137,31 @@ export function resolveStage(noteCount: number): PlanetStage {
   return 'giant'
 }
 
-export function calculatePlanetStats(notes: Note[]): PlanetViewModel[] {
+function shouldIncludeNote(note: Note, includeFrozen: boolean): boolean {
+  if (includeFrozen) return true
+  return !note.isFrozen
+}
+
+function toTimestamp(value: string): number {
+  const time = new Date(value).getTime()
+  return Number.isFinite(time) ? time : 0
+}
+
+function compareLexicographically(a: string, b: string): number {
+  if (a === b) return 0
+  return a > b ? 1 : -1
+}
+
+function stablePairKey(sourcePlanetId: string, targetPlanetId: string): string {
+  return `${sourcePlanetId}|${targetPlanetId}`
+}
+
+export function calculatePlanetStats(notes: Note[], options: PlanetStatsOptions = {}): PlanetViewModel[] {
+  const includeFrozen = options.includeFrozen ?? false
   const grouped = new Map<string, Note[]>()
 
   for (const note of notes) {
-    if (note.isFrozen) continue
+    if (!shouldIncludeNote(note, includeFrozen)) continue
     const list = grouped.get(note.planetId) ?? []
     list.push(note)
     grouped.set(note.planetId, list)
@@ -86,41 +197,154 @@ export function normalizeTags(raw: string): string[] {
   )
 }
 
-export function calculatePlanetLinks(notes: Note[]): PlanetLink[] {
-  const planetTagSetMap = new Map<string, Set<string>>()
+export function tokenizeText(input: string): string[] {
+  const cleaned = input.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ')
+  return cleaned
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => {
+      const hasCjk = /[\p{Script=Han}]/u.test(token)
+      if (hasCjk) return token.length >= 1
+      return token.length >= MIN_KEYWORD_LENGTH
+    })
+    .filter((token) => !STOPWORDS.has(token))
+}
 
-  for (const note of notes) {
-    if (note.isFrozen) continue
-    const tagSet = planetTagSetMap.get(note.planetId) ?? new Set<string>()
-    for (const tag of note.tags) {
-      if (tag.trim()) tagSet.add(tag.trim().toLowerCase())
-    }
-    planetTagSetMap.set(note.planetId, tagSet)
+export function extractKeywordMap(input: string): Map<string, number> {
+  const frequencies = new Map<string, number>()
+  const tokens = tokenizeText(input)
+
+  for (const token of tokens) {
+    frequencies.set(token, (frequencies.get(token) ?? 0) + 1)
   }
 
-  const planetIds = Array.from(planetTagSetMap.keys())
-  const links: PlanetLink[] = []
+  return frequencies
+}
+
+export function getTopKeywordsFromNote(note: Pick<Note, 'title' | 'content'>, topK = 8): string[] {
+  const keywordMap = extractKeywordMap(`${note.title} ${note.content}`)
+
+  return Array.from(keywordMap.entries())
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1]
+      return compareLexicographically(a[0], b[0])
+    })
+    .slice(0, topK)
+    .map(([keyword]) => keyword)
+}
+
+interface PlanetKeywordAggregate {
+  tagSet: Set<string>
+  keywordFrequency: Map<string, number>
+  latestUpdatedAt: number
+}
+
+export function calculatePlanetLinks(notes: Note[], options: LinkCalculationOptions = {}): PlanetLink[] {
+  const includeFrozen = options.includeFrozen ?? false
+  const tagWeight = options.tagWeight ?? DEFAULT_TAG_WEIGHT
+  const keywordWeight = options.keywordWeight ?? DEFAULT_KEYWORD_WEIGHT
+  const maxEvidenceCount = options.maxEvidenceCount ?? DEFAULT_EVIDENCE_COUNT
+
+  const planetAggregateMap = new Map<string, PlanetKeywordAggregate>()
+
+  for (const note of notes) {
+    if (!shouldIncludeNote(note, includeFrozen)) continue
+
+    const aggregate =
+      planetAggregateMap.get(note.planetId) ??
+      {
+        tagSet: new Set<string>(),
+        keywordFrequency: new Map<string, number>(),
+        latestUpdatedAt: 0
+      }
+
+    for (const tag of note.tags) {
+      const normalized = tag.trim().toLowerCase()
+      if (normalized) aggregate.tagSet.add(normalized)
+    }
+
+    const noteKeywords = extractKeywordMap(`${note.title} ${note.content}`)
+    const topKeywords = Array.from(noteKeywords.entries())
+      .sort((a, b) => {
+        if (b[1] !== a[1]) return b[1] - a[1]
+        return compareLexicographically(a[0], b[0])
+      })
+      .slice(0, MAX_KEYWORDS_PER_NOTE)
+
+    for (const [keyword, count] of topKeywords) {
+      aggregate.keywordFrequency.set(keyword, (aggregate.keywordFrequency.get(keyword) ?? 0) + count)
+    }
+
+    aggregate.latestUpdatedAt = Math.max(aggregate.latestUpdatedAt, toTimestamp(note.updatedAt))
+    planetAggregateMap.set(note.planetId, aggregate)
+  }
+
+  const planetIds = Array.from(planetAggregateMap.keys())
+  const links: Array<PlanetLink & { latestUpdatedAt: number; pairKey: string }> = []
 
   for (let i = 0; i < planetIds.length; i += 1) {
     for (let j = i + 1; j < planetIds.length; j += 1) {
       const sourcePlanetId = planetIds[i]
       const targetPlanetId = planetIds[j]
-      const sourceTags = planetTagSetMap.get(sourcePlanetId) ?? new Set<string>()
-      const targetTags = planetTagSetMap.get(targetPlanetId) ?? new Set<string>()
+      const source = planetAggregateMap.get(sourcePlanetId)
+      const target = planetAggregateMap.get(targetPlanetId)
+      if (!source || !target) continue
 
-      const sharedTags = Array.from(sourceTags).filter((tag) => targetTags.has(tag))
-      if (sharedTags.length === 0) continue
+      const sharedTags = Array.from(source.tagSet).filter((tag) => target.tagSet.has(tag))
+      sharedTags.sort(compareLexicographically)
+
+      const sharedKeywordEntries: Array<[keyword: string, score: number]> = []
+      for (const [keyword, sourceCount] of source.keywordFrequency) {
+        const targetCount = target.keywordFrequency.get(keyword)
+        if (!targetCount) continue
+        sharedKeywordEntries.push([keyword, Math.min(sourceCount, targetCount)])
+      }
+
+      sharedKeywordEntries.sort((a, b) => {
+        if (b[1] !== a[1]) return b[1] - a[1]
+        return compareLexicographically(a[0], b[0])
+      })
+
+      const sharedKeywords = sharedKeywordEntries.map(([keyword]) => keyword)
+      const tagStrength = sharedTags.length
+      const keywordStrength = sharedKeywords.length
+      if (tagStrength === 0 && keywordStrength === 0) continue
+
+      const tagScore = tagStrength * tagWeight
+      const keywordScore = keywordStrength * keywordWeight
+      const total = tagScore + keywordScore
 
       links.push({
         sourcePlanetId,
         targetPlanetId,
-        sharedTags: sharedTags.slice(0, 5),
-        strength: sharedTags.length
+        strength: total,
+        sharedTags,
+        sharedKeywords,
+        keywordStrength,
+        evidenceTags: sharedTags.slice(0, maxEvidenceCount),
+        evidenceKeywords: sharedKeywords.slice(0, maxEvidenceCount),
+        scoreBreakdown: {
+          tagScore,
+          keywordScore,
+          total
+        },
+        latestUpdatedAt: Math.max(source.latestUpdatedAt, target.latestUpdatedAt),
+        pairKey: stablePairKey(sourcePlanetId, targetPlanetId)
       })
     }
   }
 
-  return links.sort((a, b) => b.strength - a.strength)
+  return links
+    .sort((a, b) => {
+      if (b.scoreBreakdown.total !== a.scoreBreakdown.total) {
+        return b.scoreBreakdown.total - a.scoreBreakdown.total
+      }
+      if (b.latestUpdatedAt !== a.latestUpdatedAt) {
+        return b.latestUpdatedAt - a.latestUpdatedAt
+      }
+      return compareLexicographically(a.pairKey, b.pairKey)
+    })
+    .map(({ latestUpdatedAt: _latestUpdatedAt, pairKey: _pairKey, ...link }) => link)
 }
 
 export function getPlanetOptions(): PlanetConfig[] {
