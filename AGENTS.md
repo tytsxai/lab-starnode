@@ -11,6 +11,9 @@
 ├─ 05_开发路线图.md
 ├─ 06_生产发布检查清单.md
 ├─ AGENTS.md
+├─ .github/
+│  └─ workflows/
+│     └─ verify.yml
 ├─ .nvmrc
 ├─ package.json
 ├─ scripts/
@@ -69,6 +72,7 @@
 - `04_商业策略.md`：定义增长飞轮与收入模型。
 - `05_开发路线图.md`：定义阶段执行计划与 DoD。
 - `06_生产发布检查清单.md`：定义上线前后质量门禁、回滚与观察项。
+- `.github/workflows/verify.yml`：CI 质量门禁（固定 Node 22，执行 `ci:verify`）。
 - `apps/web/app/page.tsx`：MVP 入口页面（编辑 + 宇宙视图）。
 - `apps/web/components/EditorPanel.tsx`：编辑器面板（输入校验、关键词预览、编辑/新建切换）。
 - `apps/web/components/LinkPanel.tsx`：关联解释列表（标签证据/关键词证据/分数构成 + 模式筛选）。
@@ -158,3 +162,4 @@ apps/web
 - 2026-02-15：完成稳定性增强：新增 storage 跨标签页 `storage` 事件订阅能力，store 在外部变更时自动同步 notes 并清理失效编辑态/撤销快照，补齐多标签页一致性回归测试。
 - 2026-02-15：补强 storage 订阅边界测试（外部删除 key、非法 payload），确保异常输入不污染当前会话状态。
 - 2026-02-15：完成收尾治理：storage 对非法 `planetId/updatedAt` 增加归一化兜底，避免“隐形笔记”与排序不稳定；补齐对应回归测试并补充关键注释，降低新人维护认知成本。
+- 2026-02-15：补齐 GitHub Actions `verify.yml`（固定 Node 22 + `ci:verify`），并在根包声明 `engines.node=22.x`，收敛本地/CI 运行时漂移风险。
