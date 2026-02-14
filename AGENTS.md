@@ -23,6 +23,7 @@
 │     │  ├─ layout.tsx
 │     │  └─ page.tsx
 │     ├─ components/
+│     │  ├─ DeferredUniverseScene.tsx
 │     │  ├─ EditorPanel.tsx
 │     │  ├─ LinkPanel.tsx
 │     │  ├─ UniverseScene.tsx
@@ -69,11 +70,12 @@
 - `04_商业策略.md`：定义增长飞轮与收入模型。
 - `05_开发路线图.md`：定义阶段执行计划与 DoD。
 - `06_生产发布检查清单.md`：定义上线前后质量门禁、回滚与观察项。
-- `apps/web/app/page.tsx`：MVP 入口页面（编辑 + 宇宙视图）。
-- `apps/web/components/EditorPanel.tsx`：编辑器面板（输入校验、关键词预览、编辑/新建切换）。
+- `apps/web/app/page.tsx`：MVP 入口页面（编辑 + 宇宙视图挂载）。
+- `apps/web/components/DeferredUniverseScene.tsx`：3D 场景延迟加载网关（idle/降级定时器），降低首屏主线程压力。
+- `apps/web/components/EditorPanel.tsx`：编辑器面板（输入校验、关键词预览、编辑/新建切换，使用独立草稿星球态）。
 - `apps/web/components/LinkPanel.tsx`：关联解释列表（标签证据/关键词证据/分数构成 + 模式筛选）。
 - `apps/web/components/UniverseScene.tsx`：3D 宇宙视图渲染入口，负责星球选择联动。
-- `apps/web/components/UniversePanel.tsx`：右侧 HUD 交互面板（筛选/标签/批量操作/撤销/编辑跳转）。
+- `apps/web/components/UniversePanel.tsx`：右侧 HUD 交互面板（筛选/标签/批量操作/撤销/编辑跳转 + 关联证据面板联动）。
 - `apps/web/components/universe/useNoteFilterState.ts`：统一管理筛选查询状态（搜索、标签、可见性）。
 - `apps/web/components/universe/useBatchActions.ts`：封装批量迁移/冰封/删除动作与反馈文案。
 - `apps/web/components/universe/useBatchActions.test.ts`：批量删除确认文案与实际变更一致性测试。
@@ -82,19 +84,19 @@
 - `apps/web/lib/noteForm.ts`：编辑输入校验与关键词预览纯函数。
 - `apps/web/lib/batchHelpers.ts`：批量操作计数与映射纯函数（可单测复用）。
 - `apps/web/lib/batchHelpers.test.ts`：批量计数函数单测。
-- `apps/web/lib/noteStore/types.ts`：store 领域状态与输入 DTO 定义。
+- `apps/web/lib/noteStore/types.ts`：store 领域状态与输入 DTO 定义（区分导航星球态与编辑草稿星球态）。
 - `apps/web/lib/noteStore/storageAdapter.ts`：store I/O 适配层（load/save 注入点）。
 - `apps/web/lib/noteStore/seedNotes.ts`：本地首次启动种子数据。
 - `apps/web/lib/noteStore/noteCommands.ts`：store 纯命令层（无 Zustand、无 I/O）。
-- `apps/web/lib/noteStore/createNoteStore.ts`：zustand 装配工厂（依赖注入 + 副作用落盘）。
-- `apps/web/lib/useNoteStore.ts`：默认浏览器环境 store 实例导出入口。
+- `apps/web/lib/noteStore/createNoteStore.ts`：zustand 装配工厂（依赖注入 + 副作用落盘 + 可释放外部订阅）。
+- `apps/web/lib/useNoteStore.ts`：默认浏览器环境 store 单例导出入口（避免 HMR/多实例重复订阅）。
 - `apps/web/lib/useNoteStore.test.ts`：store 命令关键路径测试（no-op、undo、编辑态恢复、计数准确性）。
 - `apps/web/.eslintrc.json`：固定 Next.js ESLint 规则，保证 `next lint` 非交互可执行。
 - `packages/core/src/index.ts`：领域模型、关键词提取、混合关联评分与可解释证据输出（默认仅统计活跃笔记）。
 - `packages/core/src/index.test.ts`：核心规则测试（去噪、混合评分、冻结过滤、排序稳定性）。
 - `packages/renderer/src/index.tsx`：3D 宇宙渲染组件（支持连线与星球点击选中）。
-- `packages/storage/src/index.ts`：本地持久化（schemaVersion + 迁移管线 + 节流写入 + 跨标签页变更订阅 + 脏数据兜底归一化）。
-- `packages/storage/src/index.test.ts`：storage 迁移、节流写入与跨标签页订阅回归测试（v1/v2 到 v3 的兼容验证）。
+- `packages/storage/src/index.ts`：本地持久化（schemaVersion + 迁移管线 + 节流写入 + 跨标签页变更订阅 + 脏数据兜底归一化 + revision/writer 元数据与陈旧事件防护）。
+- `packages/storage/src/index.test.ts`：storage 迁移、节流写入与跨标签页订阅回归测试（含 revision 元数据与陈旧事件过滤验证）。
 - `.nvmrc`：统一 Node LTS 版本，降低 TypeScript 编译器异常风险。
 - `scripts/check-node-version.mjs`：Node 主版本门禁，阻断非 Node 22 环境下的开发/构建/类型检查。
 - `tsconfig.base.json`：monorepo 共享 TypeScript 基础配置（采用 workspace 包解析，避免 path alias 导致的编译器异常）。
@@ -130,6 +132,12 @@ apps/web
 4. 节流写入 + schema 迁移，优先保证可持续演进而非一次性实现。
 
 ## 变更日志
+- 2026-02-14：完成并发一致性增强：storage payload 新增 `revision/writtenAt/writerId` 元数据；写入时按当前快照递增 revision，订阅侧过滤陈旧 storage 事件，降低多标签页竞争下的状态回退风险。
+- 2026-02-14：完成编辑态解耦：store 新增 `draftPlanetId`，将编辑草稿目标星球与导航 `selectedPlanetId` 分离，避免浏览星球时误改新建/编辑目标。
+- 2026-02-14：完成交互收敛与性能治理：UniversePanel 重新接入 LinkPanel（证据词一键回填筛选）；新增 `DeferredUniverseScene` 在浏览器空闲时加载 3D 场景以降低首屏阻塞；`useNoteStore` 改为浏览器单例并提供 store cleanup 释放订阅。
+- 2026-02-14：修复“空快照回填种子数据”一致性缺陷：`createNoteStore` 通过 storage `hasNotesSnapshot` 区分“首次启动”与“用户已清空数据”；`@starnode/storage` 新增快照存在性探针并补齐回归测试，避免删除全部笔记后刷新被种子数据复活。
+- 2026-02-14：修复 UniversePanel 选择集与过滤视图不一致问题：过滤条件变化后自动剔除不可见选中项，避免批量操作落到“当前看不见”的笔记上。
+- 2026-02-14：清理批量映射 helper 的冗余时间参数，去除无意义时间戳创建，降低批量操作路径的心智负担与微小热路径开销。
 - 2026-02-14：完成稳定性与体验收敛：修复 storage 在“节流写入 + 跨标签页外部更新”场景下的旧快照回写竞态（新增回归测试）；统一过滤重置为完整初始态，并优化列表勾选/排序热点（Set 查询 + 预计算时间戳）；补充 LinkPanel 键盘可达性（Enter/Space）。
 - 2026-02-14：完成 v2 文档重构（愿景/PRD/架构/商业/路线图）。
 - 2026-02-14：初始化 monorepo 工程骨架（apps + packages）。
