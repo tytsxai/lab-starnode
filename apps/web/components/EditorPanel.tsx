@@ -13,7 +13,8 @@ export function EditorPanel() {
   const editingNoteId = useNoteStore((state) => state.editingNoteId)
   const cancelEditNote = useNoteStore((state) => state.cancelEditNote)
   const selectedPlanetId = useNoteStore((state) => state.selectedPlanetId)
-  const setSelectedPlanetId = useNoteStore((state) => state.setSelectedPlanetId)
+  const draftPlanetId = useNoteStore((state) => state.draftPlanetId)
+  const setDraftPlanetId = useNoteStore((state) => state.setDraftPlanetId)
   const isFocusMode = useNoteStore((state) => state.isFocusMode)
   const setFocusMode = useNoteStore((state) => state.setFocusMode)
 
@@ -37,7 +38,7 @@ export function EditorPanel() {
       setTitle(editingNote.title)
       setContent(editingNote.content)
       setTagsRaw(editingNote.tags.join(','))
-      setSelectedPlanetId(editingNote.planetId)
+      setDraftPlanetId(editingNote.planetId)
       setError('')
       return
     }
@@ -45,12 +46,13 @@ export function EditorPanel() {
     // 目标笔记被删除或不可用时，主动清理编辑表单，避免残留脏状态误提交。
     if (editingNoteId) {
       cancelEditNote()
+      setDraftPlanetId(selectedPlanetId)
       setTitle('')
       setContent('')
       setTagsRaw('')
       setError('')
     }
-  }, [cancelEditNote, editingNote, editingNoteId, setSelectedPlanetId])
+  }, [cancelEditNote, editingNote, editingNoteId, selectedPlanetId, setDraftPlanetId])
 
   const submit = () => {
     const validation = validateNoteInput({ title, content, tagsRaw })
@@ -61,9 +63,9 @@ export function EditorPanel() {
     setError('')
 
     if (editingNote) {
-      updateNote({ noteId: editingNote.id, title, content, tagsRaw, planetId: selectedPlanetId })
+      updateNote({ noteId: editingNote.id, title, content, tagsRaw, planetId: draftPlanetId })
     } else {
-      addNote({ title, content, tagsRaw, planetId: selectedPlanetId })
+      addNote({ title, content, tagsRaw, planetId: draftPlanetId })
     }
     setTitle('')
     setContent('')
@@ -126,8 +128,8 @@ export function EditorPanel() {
 
         <select
           className="select"
-          value={selectedPlanetId}
-          onChange={(e) => setSelectedPlanetId(e.target.value)}
+          value={draftPlanetId}
+          onChange={(e) => setDraftPlanetId(e.target.value)}
           style={{ marginTop: 16 }}
         >
           {PLANET_OPTIONS.map((planet) => (

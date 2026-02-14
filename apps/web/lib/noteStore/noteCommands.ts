@@ -2,7 +2,7 @@ import { normalizeTags, type Note } from '@starnode/core'
 import { countExistingNotes, countFreezableNotes, countMovableNotes, mapNotesBySelection } from '../batchHelpers'
 import type { AddNoteInput, NoteState, UndoSnapshot, UpdateNoteInput } from './types'
 
-type NoteStateSnapshot = Pick<NoteState, 'notes' | 'selectedPlanetId' | 'editingNoteId' | 'undoSnapshot'>
+type NoteStateSnapshot = Pick<NoteState, 'notes' | 'selectedPlanetId' | 'draftPlanetId' | 'editingNoteId' | 'undoSnapshot'>
 
 interface CommandContext {
   now: () => string
@@ -19,6 +19,7 @@ function toUndoSnapshot(state: NoteStateSnapshot, message: string): UndoSnapshot
   return {
     notes: state.notes,
     selectedPlanetId: state.selectedPlanetId,
+    draftPlanetId: state.draftPlanetId,
     editingNoteId: state.editingNoteId,
     message
   }
@@ -79,7 +80,7 @@ export function updateNoteCommand(
   return {
     patch: {
       notes: nextNotes,
-      selectedPlanetId: input.planetId,
+      draftPlanetId: input.planetId,
       editingNoteId: null,
       undoSnapshot: null
     },
@@ -196,6 +197,7 @@ export function undoLastActionCommand(state: NoteStateSnapshot): CommandResult {
     patch: {
       notes: state.undoSnapshot.notes,
       selectedPlanetId: state.undoSnapshot.selectedPlanetId,
+      draftPlanetId: state.undoSnapshot.draftPlanetId,
       editingNoteId: state.undoSnapshot.editingNoteId,
       undoSnapshot: null
     },

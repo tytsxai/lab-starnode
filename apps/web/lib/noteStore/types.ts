@@ -3,6 +3,7 @@ import type { Note } from '@starnode/core'
 export interface UndoSnapshot {
   notes: Note[]
   selectedPlanetId: string
+  draftPlanetId: string
   editingNoteId: string | null
   message: string
 }
@@ -21,10 +22,12 @@ export interface UpdateNoteInput extends AddNoteInput {
 export interface NoteState {
   notes: Note[]
   selectedPlanetId: string
+  draftPlanetId: string
   editingNoteId: string | null
   undoSnapshot: UndoSnapshot | null
   isFocusMode: boolean
   setSelectedPlanetId: (planetId: string) => void
+  setDraftPlanetId: (planetId: string) => void
   setFocusMode: (next: boolean) => void
   startEditNote: (noteId: string) => void
   cancelEditNote: () => void

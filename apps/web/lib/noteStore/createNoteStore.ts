@@ -22,6 +22,9 @@ interface CreateNoteStoreDeps {
 
 function resolveInitialNotes(storage: NoteStorageAdapter) {
   const local = storage.loadNotes()
+  if (storage.hasNotesSnapshot) {
+    return storage.hasNotesSnapshot() ? local : seedNotes
+  }
   return local.length > 0 ? local : seedNotes
 }
 
@@ -35,10 +38,12 @@ export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
   const store = create<NoteState>((set) => ({
     notes: resolveInitialNotes(deps.storage),
     selectedPlanetId: 'p-life',
+    draftPlanetId: 'p-life',
     editingNoteId: null,
     undoSnapshot: null,
     isFocusMode: false,
     setSelectedPlanetId: (planetId) => set({ selectedPlanetId: planetId }),
+    setDraftPlanetId: (planetId) => set({ draftPlanetId: planetId }),
     setFocusMode: (next) => set({ isFocusMode: next }),
     startEditNote: (noteId) => set({ editingNoteId: noteId }),
     cancelEditNote: () => set({ editingNoteId: null }),
@@ -112,7 +117,7 @@ export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
     }
   }))
 
-  deps.storage.subscribeNotes?.((externalNotes) => {
+  const unsubscribeExternal = deps.storage.subscribeNotes?.((externalNotes) => {
     store.setState((state) => {
       if (areNotesEqual(state.notes, externalNotes)) return state
 
@@ -131,7 +136,14 @@ export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
     })
   })
 
-  return store
+  let cleanedUp = false
+  const cleanup = () => {
+    if (cleanedUp) return
+    cleanedUp = true
+    unsubscribeExternal?.()
+  }
+
+  return Object.assign(store, { cleanup })
 }
 
 function areNotesEqual(a: NoteState['notes'], b: NoteState['notes']): boolean {

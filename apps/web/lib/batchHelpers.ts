@@ -28,15 +28,14 @@ export function countFreezableNotes(notes: Note[], noteIds: string[], nextFrozen
 export function mapNotesBySelection(
   notes: Note[],
   noteIds: string[],
-  mapFn: (note: Note, now: string) => Note
+  mapFn: (note: Note) => Note
 ): { notes: Note[]; changedCount: number } {
   const idSet = toIdSet(noteIds)
-  const now = new Date().toISOString()
   let changedCount = 0
 
   const nextNotes = notes.map((note) => {
     if (!idSet.has(note.id)) return note
-    const next = mapFn(note, now)
+    const next = mapFn(note)
     if (next !== note) changedCount += 1
     return next
   })

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Note } from '@starnode/core'
 import { createNoteStore } from './noteStore/createNoteStore'
 import type { NoteStorageAdapter } from './noteStore/storageAdapter'
+import { seedNotes } from './noteStore/seedNotes'
 
 function createNote(input: Partial<Note> & Pick<Note, 'id'>): Note {
   return {
@@ -21,15 +22,18 @@ function createNote(input: Partial<Note> & Pick<Note, 'id'>): Note {
 describe('useNoteStore command behavior', () => {
   let saveNotesSpy: ReturnType<typeof vi.fn>
   let subscribeNotesSpy: ReturnType<typeof vi.fn>
+  let unsubscribeSpy: ReturnType<typeof vi.fn>
   let externalChangeHandler: ((notes: Note[]) => void) | null
   let store: ReturnType<typeof createNoteStore>
 
   beforeEach(() => {
     saveNotesSpy = vi.fn()
+    unsubscribeSpy = vi.fn()
     externalChangeHandler = null
     subscribeNotesSpy = vi.fn((onChange: (notes: Note[]) => void) => {
       externalChangeHandler = onChange
       return () => {
+        unsubscribeSpy()
         externalChangeHandler = null
       }
     })
@@ -50,10 +54,48 @@ describe('useNoteStore command behavior', () => {
     expect(subscribeNotesSpy).toHaveBeenCalledTimes(1)
   })
 
+  it('createNoteStore 应暴露 cleanup，确保外部订阅可释放', () => {
+    store.cleanup()
+    expect(unsubscribeSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('检测到本地已有快照且为空数组时，不应回填种子数据', () => {
+    const storage: NoteStorageAdapter = {
+      loadNotes: () => [],
+      hasNotesSnapshot: () => true,
+      saveNotes: vi.fn()
+    }
+
+    const localStore = createNoteStore({
+      storage,
+      now: () => '2026-02-14T08:00:00.000Z',
+      uuid: () => 'generated-id'
+    })
+
+    expect(localStore.getState().notes).toEqual([])
+  })
+
+  it('本地尚无快照时，才应注入种子数据', () => {
+    const storage: NoteStorageAdapter = {
+      loadNotes: () => [],
+      hasNotesSnapshot: () => false,
+      saveNotes: vi.fn()
+    }
+
+    const localStore = createNoteStore({
+      storage,
+      now: () => '2026-02-14T08:00:00.000Z',
+      uuid: () => 'generated-id'
+    })
+
+    expect(localStore.getState().notes).toEqual(seedNotes)
+  })
+
   it('moveNotes no-op 时不落盘', () => {
     store.setState({
       notes: [createNote({ id: '1', planetId: 'p-tech' })],
       selectedPlanetId: 'p-tech',
+      draftPlanetId: 'p-tech',
       editingNoteId: null,
       undoSnapshot: null,
       isFocusMode: false
@@ -70,6 +112,7 @@ describe('useNoteStore command behavior', () => {
     store.setState({
       notes: [createNote({ id: '1' }), createNote({ id: '2' })],
       selectedPlanetId: 'p-life',
+      draftPlanetId: 'p-life',
       editingNoteId: '2',
       undoSnapshot: null,
       isFocusMode: false
@@ -87,6 +130,7 @@ describe('useNoteStore command behavior', () => {
     store.setState({
       notes: [createNote({ id: '1', isFrozen: false }), createNote({ id: '2', isFrozen: true })],
       selectedPlanetId: 'p-life',
+      draftPlanetId: 'p-life',
       editingNoteId: null,
       undoSnapshot: null,
       isFocusMode: false
@@ -104,6 +148,7 @@ describe('useNoteStore command behavior', () => {
     store.setState({
       notes: [createNote({ id: '1', planetId: 'p-life' })],
       selectedPlanetId: 'p-life',
+      draftPlanetId: 'p-life',
       editingNoteId: null,
       undoSnapshot: null,
       isFocusMode: false
@@ -114,13 +159,15 @@ describe('useNoteStore command behavior', () => {
 
     expect(store.getState().notes.find((note) => note.id === '1')?.planetId).toBe('p-life')
     expect(store.getState().selectedPlanetId).toBe('p-life')
+    expect(store.getState().draftPlanetId).toBe('p-life')
     expect(store.getState().undoSnapshot).toBeNull()
   })
 
-  it('updateNote 会同步 selectedPlanetId 并退出编辑态', () => {
+  it('updateNote 应仅更新 draftPlanetId，不应篡改当前导航星球', () => {
     store.setState({
       notes: [createNote({ id: '1', planetId: 'p-life' })],
       selectedPlanetId: 'p-life',
+      draftPlanetId: 'p-life',
       editingNoteId: '1',
       undoSnapshot: null,
       isFocusMode: false
@@ -138,7 +185,8 @@ describe('useNoteStore command behavior', () => {
     expect(target?.planetId).toBe('p-tech')
     expect(target?.tags).toEqual(['alpha', 'beta'])
     expect(target?.updatedAt).toBe('2026-02-14T08:00:00.000Z')
-    expect(store.getState().selectedPlanetId).toBe('p-tech')
+    expect(store.getState().selectedPlanetId).toBe('p-life')
+    expect(store.getState().draftPlanetId).toBe('p-tech')
     expect(store.getState().editingNoteId).toBeNull()
   })
 
@@ -161,10 +209,12 @@ describe('useNoteStore command behavior', () => {
     store.setState({
       notes: [createNote({ id: '1', title: 'old' })],
       selectedPlanetId: 'p-life',
+      draftPlanetId: 'p-tech',
       editingNoteId: '1',
       undoSnapshot: {
         notes: [createNote({ id: 'shadow' })],
         selectedPlanetId: 'p-life',
+        draftPlanetId: 'p-life',
         editingNoteId: null,
         message: 'undo'
       },
@@ -178,5 +228,6 @@ describe('useNoteStore command behavior', () => {
     expect(state.notes[0].id).toBe('2')
     expect(state.editingNoteId).toBeNull()
     expect(state.undoSnapshot).toBeNull()
+    expect(state.draftPlanetId).toBe('p-tech')
   })
 })
