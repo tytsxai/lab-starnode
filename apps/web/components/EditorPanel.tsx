@@ -1,13 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { calculatePlanetStats, getPlanetOptions, normalizeTags } from '@starnode/core'
+import { calculatePlanetStats, getPlanetOptions } from '@starnode/core'
 import { useNoteStore } from '../lib/useNoteStore'
+import { getKeywordPreview, parseTags, validateNoteInput, TAG_MAX_COUNT, TITLE_MAX_LENGTH } from '../lib/noteForm'
 
 const PLANET_OPTIONS = getPlanetOptions()
-const TITLE_MAX_LENGTH = 80
-const TAG_MAX_COUNT = 10
-
 export function EditorPanel() {
   const notes = useNoteStore((state) => state.notes)
   const addNote = useNoteStore((state) => state.addNote)
@@ -26,13 +24,11 @@ export function EditorPanel() {
     () => notes.find((note) => note.id === editingNoteId) ?? null,
     [notes, editingNoteId]
   )
-  const parsedTags = useMemo(() => normalizeTags(tagsRaw), [tagsRaw])
+  const parsedTags = useMemo(() => parseTags(tagsRaw), [tagsRaw])
+  const keywordPreview = useMemo(() => getKeywordPreview({ title, content }, 6), [content, title])
   const canSubmit = useMemo(() => {
-    if (!title.trim() && !content.trim()) return false
-    if (title.length > TITLE_MAX_LENGTH) return false
-    if (parsedTags.length > TAG_MAX_COUNT) return false
-    return true
-  }, [content, parsedTags.length, title])
+    return validateNoteInput({ title, content, tagsRaw }).valid
+  }, [content, tagsRaw, title])
 
   useEffect(() => {
     if (!editingNote) return
@@ -44,16 +40,9 @@ export function EditorPanel() {
   }, [editingNote, setSelectedPlanetId])
 
   const submit = () => {
-    if (!title.trim() && !content.trim()) {
-      setError('标题和内容不能同时为空。')
-      return
-    }
-    if (title.length > TITLE_MAX_LENGTH) {
-      setError(`标题过长，最多 ${TITLE_MAX_LENGTH} 个字符。`)
-      return
-    }
-    if (parsedTags.length > TAG_MAX_COUNT) {
-      setError(`标签过多，最多 ${TAG_MAX_COUNT} 个。`)
+    const validation = validateNoteInput({ title, content, tagsRaw })
+    if (!validation.valid) {
+      setError(validation.message)
       return
     }
     setError('')
@@ -99,6 +88,15 @@ export function EditorPanel() {
           placeholder="标签（逗号分隔，如：ai,writing,research）"
         />
         <div className="hint-line">标签数量：{parsedTags.length} / {TAG_MAX_COUNT}</div>
+        <div className="hint-line">关键词预览：</div>
+        <div className="tag-chip-wrap">
+          {keywordPreview.map((keyword) => (
+            <span key={keyword} className="tag-chip">
+              {keyword}
+            </span>
+          ))}
+          {keywordPreview.length === 0 && <span className="overlay-subline">输入内容后自动提取</span>}
+        </div>
         <select className="select" value={selectedPlanetId} onChange={(e) => setSelectedPlanetId(e.target.value)}>
           {PLANET_OPTIONS.map((planet) => (
             <option key={planet.id} value={planet.id}>

@@ -21,6 +21,7 @@ export function UniversePanel() {
   const moveNotes = useNoteStore((state) => state.moveNotes)
   const setNotesFrozen = useNoteStore((state) => state.setNotesFrozen)
   const [showAllLinks, setShowAllLinks] = useState(false)
+  const [linkMode, setLinkMode] = useState<'all' | 'tag' | 'keyword' | 'mixed'>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'updated_desc' | 'title_asc'>('updated_desc')
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -29,8 +30,15 @@ export function UniversePanel() {
   const [batchTargetPlanetId, setBatchTargetPlanetId] = useState('p-tech')
   const [toast, setToast] = useState<string | null>(null)
 
-  const planets = useMemo(() => calculatePlanetStats(notes), [notes])
-  const links = useMemo(() => calculatePlanetLinks(notes), [notes])
+  const includeFrozenInGraph = visibilityMode !== 'active'
+  const planets = useMemo(
+    () => calculatePlanetStats(notes, { includeFrozen: includeFrozenInGraph }),
+    [includeFrozenInGraph, notes]
+  )
+  const links = useMemo(
+    () => calculatePlanetLinks(notes, { includeFrozen: includeFrozenInGraph }),
+    [includeFrozenInGraph, notes]
+  )
   const planetNameMap = useMemo(() => {
     return new Map(planets.map((planet) => [planet.id, planet.name]))
   }, [planets])
@@ -75,11 +83,18 @@ export function UniversePanel() {
     })
   }, [activeTag, searchTerm, selectedNotes, sortBy, visibilityMode])
   const visibleLinks = useMemo(() => {
-    if (showAllLinks) return links
-    return links.filter(
+    const modeFiltered = links.filter((link) => {
+      if (linkMode === 'all') return true
+      if (linkMode === 'tag') return link.sharedTags.length > 0 && link.sharedKeywords.length === 0
+      if (linkMode === 'keyword') return link.sharedKeywords.length > 0 && link.sharedTags.length === 0
+      return link.sharedTags.length > 0 && link.sharedKeywords.length > 0
+    })
+
+    if (showAllLinks) return modeFiltered
+    return modeFiltered.filter(
       (link) => link.sourcePlanetId === selectedPlanetId || link.targetPlanetId === selectedPlanetId
     )
-  }, [links, selectedPlanetId, showAllLinks])
+  }, [linkMode, links, selectedPlanetId, showAllLinks])
   const hasSelected = selectedNoteIds.length > 0
 
   useEffect(() => {
@@ -132,16 +147,11 @@ export function UniversePanel() {
               <button
                 className="mini-button"
                 onClick={() => {
-                  const movedCount = selectedNoteIds.reduce((count, id) => {
-                    const note = selectedNoteMap.get(id)
-                    if (!note) return count
-                    return note.planetId === batchTargetPlanetId ? count : count + 1
-                  }, 0)
+                  const movedCount = moveNotes(selectedNoteIds, batchTargetPlanetId)
                   if (movedCount === 0) {
                     setToast('没有可迁移的笔记')
                     return
                   }
-                  moveNotes(selectedNoteIds, batchTargetPlanetId)
                   setToast(`已迁移 ${movedCount} 条笔记`)
                   clearSelection()
                 }}
@@ -151,16 +161,11 @@ export function UniversePanel() {
               <button
                 className="mini-button"
                 onClick={() => {
-                  const freezeCount = selectedNoteIds.reduce((count, id) => {
-                    const note = selectedNoteMap.get(id)
-                    if (!note) return count
-                    return note.isFrozen ? count : count + 1
-                  }, 0)
+                  const freezeCount = setNotesFrozen(selectedNoteIds, true)
                   if (freezeCount === 0) {
                     setToast('没有可冰封的笔记')
                     return
                   }
-                  setNotesFrozen(selectedNoteIds, true)
                   setToast(`已冰封 ${freezeCount} 条笔记`)
                   clearSelection()
                 }}
@@ -170,16 +175,11 @@ export function UniversePanel() {
               <button
                 className="mini-button"
                 onClick={() => {
-                  const unfreezeCount = selectedNoteIds.reduce((count, id) => {
-                    const note = selectedNoteMap.get(id)
-                    if (!note) return count
-                    return note.isFrozen ? count + 1 : count
-                  }, 0)
+                  const unfreezeCount = setNotesFrozen(selectedNoteIds, false)
                   if (unfreezeCount === 0) {
                     setToast('没有可解冻的笔记')
                     return
                   }
-                  setNotesFrozen(selectedNoteIds, false)
                   setToast(`已解冻 ${unfreezeCount} 条笔记`)
                   clearSelection()
                 }}
@@ -189,10 +189,7 @@ export function UniversePanel() {
               <button
                 className="danger-button"
                 onClick={() => {
-                  const deletableCount = selectedNoteIds.reduce(
-                    (count, id) => (selectedNoteMap.has(id) ? count + 1 : count),
-                    0
-                  )
+                  const deletableCount = selectedNoteIds.filter((id) => selectedNoteMap.has(id)).length
                   if (deletableCount === 0) {
                     setToast('没有可删除的笔记')
                     return
@@ -320,8 +317,8 @@ export function UniversePanel() {
                 className="mini-button"
                 onClick={() => {
                   const nextFrozen = !note.isFrozen
-                  setNotesFrozen([note.id], nextFrozen)
-                  setToast(nextFrozen ? '已冰封 1 条笔记' : '已解冻 1 条笔记')
+                  const changed = setNotesFrozen([note.id], nextFrozen)
+                  if (changed > 0) setToast(nextFrozen ? '已冰封 1 条笔记' : '已解冻 1 条笔记')
                 }}
               >
                 {note.isFrozen ? '解冻' : '冰封'}
@@ -331,8 +328,8 @@ export function UniversePanel() {
                 onClick={() => {
                   const ok = window.confirm('确认删除这条笔记吗？此操作可撤销一次。')
                   if (!ok) return
-                  deleteNote(note.id)
-                  setToast('已删除 1 条笔记')
+                  const changed = deleteNote(note.id)
+                  if (changed > 0) setToast('已删除 1 条笔记')
                 }}
               >
                 删除
@@ -350,8 +347,18 @@ export function UniversePanel() {
         links={visibleLinks}
         showAllLinks={showAllLinks}
         onToggleShowAllLinks={() => setShowAllLinks((prev) => !prev)}
+        linkMode={linkMode}
+        onChangeLinkMode={setLinkMode}
         planetNameMap={planetNameMap}
         onSelectPlanet={setSelectedPlanetId}
+        onPickEvidence={(value, kind) => {
+          setSearchTerm(value)
+          if (kind === 'tag') {
+            setActiveTag(value)
+          } else {
+            setActiveTag(null)
+          }
+        }}
       />
     </section>
   )

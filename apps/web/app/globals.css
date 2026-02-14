@@ -179,6 +179,18 @@ body {
   cursor: pointer;
 }
 
+.evidence-chip {
+  border: 1px solid #3f5681;
+  background: #12213f;
+  color: #d8e5ff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-right: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .tag-chip-active {
   border-color: #5975ba;
   background: #1b2e5d;
