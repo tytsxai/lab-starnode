@@ -78,7 +78,7 @@
 - `apps/web/components/UniversePanel.tsx`：右侧 HUD 交互面板（筛选/标签/批量操作/撤销/编辑跳转 + 关联证据面板联动）。
 - `apps/web/components/universe/useNoteFilterState.ts`：统一管理筛选查询状态（搜索、标签、可见性）。
 - `apps/web/components/universe/useBatchActions.ts`：封装批量迁移/冰封/删除动作与反馈文案。
-- `apps/web/components/universe/useBatchActions.test.ts`：批量删除确认文案与实际变更一致性测试。
+- `apps/web/components/universe/useBatchActions.test.ts`：批量迁移/冰封/解冻/删除动作的选择集过滤与提示一致性测试。
 - `apps/web/components/universe/NoteListOverlay.tsx`：笔记列表纯渲染层（选择、编辑入口、单条冻结/删除）。
 - `apps/web/components/universe/types.ts`：Universe 面板查询与列表渲染类型定义。
 - `apps/web/lib/noteForm.ts`：编辑输入校验与关键词预览纯函数。
@@ -132,6 +132,7 @@ apps/web
 4. 节流写入 + schema 迁移，优先保证可持续演进而非一次性实现。
 
 ## 变更日志
+- 2026-02-14：加固批量操作一致性：`useBatchActions` 统一仅对当前存在的选中项执行迁移/冰封/解冻/删除，规避陈旧选择集误操作；`LinkPanel` 键盘事件新增目标守卫，避免子按钮按键冒泡触发误跳转；补齐对应回归测试。
 - 2026-02-14：完成并发一致性增强：storage payload 新增 `revision/writtenAt/writerId` 元数据；写入时按当前快照递增 revision，订阅侧过滤陈旧 storage 事件，降低多标签页竞争下的状态回退风险。
 - 2026-02-14：完成编辑态解耦：store 新增 `draftPlanetId`，将编辑草稿目标星球与导航 `selectedPlanetId` 分离，避免浏览星球时误改新建/编辑目标。
 - 2026-02-14：完成交互收敛与性能治理：UniversePanel 重新接入 LinkPanel（证据词一键回填筛选）；新增 `DeferredUniverseScene` 在浏览器空闲时加载 3D 场景以降低首屏阻塞；`useNoteStore` 改为浏览器单例并提供 store cleanup 释放订阅。
