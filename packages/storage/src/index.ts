@@ -201,10 +201,11 @@ export function subscribeNotes(onChange: (notes: Note[]) => void): () => void {
 
   const handler = (event: StorageEvent) => {
     if (event.storageArea && event.storageArea !== window.localStorage) return
-    if (event.key !== STORAGE_KEY) return
+    // key === null 代表外部标签页调用了 localStorage.clear()，需要回收本地状态。
+    if (event.key !== STORAGE_KEY && event.key !== null) return
 
     // 仅处理其他标签页变更；当前标签页写入不会触发该事件。
-    if (!event.newValue) {
+    if (event.key === null || !event.newValue) {
       onChange([])
       return
     }

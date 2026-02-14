@@ -159,3 +159,4 @@ apps/web
 - 2026-02-15：补强 storage 订阅边界测试（外部删除 key、非法 payload），确保异常输入不污染当前会话状态。
 - 2026-02-15：完成收尾治理：storage 对非法 `planetId/updatedAt` 增加归一化兜底，避免“隐形笔记”与排序不稳定；补齐对应回归测试并补充关键注释，降低新人维护认知成本。
 - 2026-02-15：在根包声明 `engines.node=22.x`，收敛本地运行时漂移风险；GitHub Actions workflow 受 `workflow` scope 限制，待授权后推送。
+- 2026-02-15：补齐 storage 跨标签页 `localStorage.clear()` 同步边界（`StorageEvent.key === null`），确保外部清空数据时当前会话可正确回收为无笔记状态。

@@ -161,6 +161,21 @@ describe('storage migration and throttle', () => {
     unsubscribe()
   })
 
+  it('should notify empty list when another tab clears localStorage', () => {
+    const onChange = vi.fn()
+    const unsubscribe = subscribeNotes(onChange)
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: null,
+        newValue: null
+      })
+    )
+
+    expect(onChange).toHaveBeenCalledWith([])
+    unsubscribe()
+  })
+
   it('should ignore malformed external payload', () => {
     const onChange = vi.fn()
     const unsubscribe = subscribeNotes(onChange)
