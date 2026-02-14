@@ -6,12 +6,6 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "baseUrl": ".",
-    "paths": {
-      "@starnode/core": ["packages/core/src/index.ts"],
-      "@starnode/renderer": ["packages/renderer/src/index.ts"],
-      "@starnode/storage": ["packages/storage/src/index.ts"]
-    }
+    "resolveJsonModule": true
   }
 }

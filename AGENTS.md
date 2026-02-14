@@ -9,6 +9,7 @@
 ├─ 03_技术架构.md
 ├─ 04_商业策略.md
 ├─ 05_开发路线图.md
+├─ 06_生产发布检查清单.md
 ├─ AGENTS.md
 ├─ .nvmrc
 ├─ package.json
@@ -24,10 +25,22 @@
 │     ├─ components/
 │     │  ├─ EditorPanel.tsx
 │     │  ├─ LinkPanel.tsx
-│     │  └─ UniversePanel.tsx
+│     │  ├─ UniverseScene.tsx
+│     │  ├─ UniversePanel.tsx
+│     │  └─ universe/
+│     │     ├─ NoteListOverlay.tsx
+│     │     ├─ types.ts
+│     │     ├─ useBatchActions.ts
+│     │     └─ useNoteFilterState.ts
 │     ├─ lib/
 │     │  ├─ batchHelpers.ts
 │     │  ├─ batchHelpers.test.ts
+│     │  ├─ noteStore/
+│     │  │  ├─ createNoteStore.ts
+│     │  │  ├─ noteCommands.ts
+│     │  │  ├─ seedNotes.ts
+│     │  │  ├─ storageAdapter.ts
+│     │  │  └─ types.ts
 │     │  ├─ noteForm.ts
 │     │  ├─ useNoteStore.ts
 │     │  └─ useNoteStore.test.ts
@@ -54,15 +67,26 @@
 - `03_技术架构.md`：定义分层架构、数据模型与技术决策。
 - `04_商业策略.md`：定义增长飞轮与收入模型。
 - `05_开发路线图.md`：定义阶段执行计划与 DoD。
+- `06_生产发布检查清单.md`：定义上线前后质量门禁、回滚与观察项。
 - `apps/web/app/page.tsx`：MVP 入口页面（编辑 + 宇宙视图）。
 - `apps/web/components/EditorPanel.tsx`：编辑器面板（输入校验、关键词预览、编辑/新建切换）。
 - `apps/web/components/LinkPanel.tsx`：关联解释列表（标签证据/关键词证据/分数构成 + 模式筛选）。
-- `apps/web/components/UniversePanel.tsx`：3D 宇宙视图、关联过滤、证据回填搜索、笔记筛选与批量操作入口。
+- `apps/web/components/UniverseScene.tsx`：3D 宇宙视图渲染入口，负责星球选择联动。
+- `apps/web/components/UniversePanel.tsx`：右侧 HUD 交互面板（筛选/标签/批量操作/撤销/编辑跳转）。
+- `apps/web/components/universe/useNoteFilterState.ts`：统一管理筛选查询状态（搜索、标签、可见性）。
+- `apps/web/components/universe/useBatchActions.ts`：封装批量迁移/冰封/删除动作与反馈文案。
+- `apps/web/components/universe/NoteListOverlay.tsx`：笔记列表纯渲染层（选择、编辑入口、单条冻结/删除）。
+- `apps/web/components/universe/types.ts`：Universe 面板查询与列表渲染类型定义。
 - `apps/web/lib/noteForm.ts`：编辑输入校验与关键词预览纯函数。
 - `apps/web/lib/batchHelpers.ts`：批量操作计数与映射纯函数（可单测复用）。
 - `apps/web/lib/batchHelpers.test.ts`：批量计数函数单测。
-- `apps/web/lib/useNoteStore.ts`：统一管理笔记状态（新增/更新/删除/批量迁移/批量删除/冰封解冻/编辑态/一次撤销快照）。
-- `apps/web/lib/useNoteStore.test.ts`：store 批量计数与 undo 快照恢复单测。
+- `apps/web/lib/noteStore/types.ts`：store 领域状态与输入 DTO 定义。
+- `apps/web/lib/noteStore/storageAdapter.ts`：store I/O 适配层（load/save 注入点）。
+- `apps/web/lib/noteStore/seedNotes.ts`：本地首次启动种子数据。
+- `apps/web/lib/noteStore/noteCommands.ts`：store 纯命令层（无 Zustand、无 I/O）。
+- `apps/web/lib/noteStore/createNoteStore.ts`：zustand 装配工厂（依赖注入 + 副作用落盘）。
+- `apps/web/lib/useNoteStore.ts`：默认浏览器环境 store 实例导出入口。
+- `apps/web/lib/useNoteStore.test.ts`：store 命令关键路径测试（no-op、undo、编辑态恢复、计数准确性）。
 - `apps/web/.eslintrc.json`：固定 Next.js ESLint 规则，保证 `next lint` 非交互可执行。
 - `packages/core/src/index.ts`：领域模型、关键词提取、混合关联评分与可解释证据输出（默认仅统计活跃笔记）。
 - `packages/core/src/index.test.ts`：核心规则测试（去噪、混合评分、冻结过滤、排序稳定性）。
@@ -71,6 +95,7 @@
 - `packages/storage/src/index.test.ts`：storage 迁移与节流写入回归测试（v1/v2 到 v3 的兼容验证）。
 - `.nvmrc`：统一 Node LTS 版本，降低 TypeScript 编译器异常风险。
 - `scripts/check-node-version.mjs`：Node 主版本门禁，阻断非 Node 22 环境下的开发/构建/类型检查。
+- `tsconfig.base.json`：monorepo 共享 TypeScript 基础配置（采用 workspace 包解析，避免 path alias 导致的编译器异常）。
 
 ## 模块边界与依赖
 
@@ -93,6 +118,8 @@ apps/web
 2. `renderer` 只负责可视化，不写业务规则。
 3. `storage` 只负责读写与迁移，不推导业务状态。
 4. `apps/web` 负责组装与交互流程。
+5. `apps/web/lib/noteStore/noteCommands.ts` 只能包含纯状态变换，不允许直接访问存储或浏览器 API。
+6. `apps/web/components/universe/*` 只负责面板状态与渲染，不直接耦合持久化实现细节。
 
 ## 关键架构决策
 1. 先做 **本地优先 + 单人宇宙**，保证闭环体验。
@@ -122,3 +149,6 @@ apps/web
 - 2026-02-14：抽离表单校验与批量计数 helper，并补齐 web/store 关键单测。
 - 2026-02-14：storage 增加 schemaVersion 迁移管线与节流保存；CI workflow 已在本地提交，待 `workflow` scope 权限后推送远端。
 - 2026-02-14：修复 storage 读时迁移未回写的逻辑漏洞，并新增迁移/节流测试覆盖。
+- 2026-02-14：完成 UniversePanel 分层拆分（query state / batch actions / list render），并将 useNoteStore 重构为 commands + adapter + factory 注入架构，新增 6 条 store 关键行为测试。
+- 2026-02-14：新增 `ci:verify` 一键质量门禁脚本与生产发布检查清单文档；CI workflow 文件已在本地生成，待 `workflow` scope 权限后推送远端。
+- 2026-02-14：移除 `tsconfig.base.json` 中跨包 `paths` 映射，改为 workspace 包解析以修复 `tsc --noEmit` Debug Failure；根构建脚本改为 `--if-present` 以匹配多包实际脚本覆盖。

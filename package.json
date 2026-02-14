@@ -13,9 +13,10 @@
     "prebuild": "npm run check:node",
     "pretypecheck": "npm run check:node",
     "dev": "npm run dev --workspace @starnode/web",
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "ci:verify": "npm run lint && npm run test && npm run typecheck && npm run build"
   }
 }
