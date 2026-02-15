@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Note } from '@starnode/core'
-import { hasNotesSnapshot, loadNotes, saveNotes, subscribeNotes } from './index'
+import { hasNotesSnapshot, loadNotes, saveNotes, subscribeNotes, subscribeNotesWithMeta } from './index'
 
 function createNote(input: Partial<Note> & Pick<Note, 'id'>): Note {
   return {
@@ -274,6 +274,63 @@ describe('storage migration and throttle', () => {
     )
 
     expect(onChange).not.toHaveBeenCalled()
+    unsubscribe()
+  })
+
+  it('should keep pending save when malformed external payload arrives', () => {
+    vi.useFakeTimers()
+
+    const localDraft = [createNote({ id: 'local', title: 'local-draft' })]
+    saveNotes(localDraft)
+
+    const onChange = vi.fn()
+    const unsubscribe = subscribeNotes(onChange)
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'starnode:notes',
+        newValue: '{invalid-json'
+      })
+    )
+
+    vi.advanceTimersByTime(300)
+
+    const raw = window.localStorage.getItem('starnode:notes')
+    expect(raw).not.toBeNull()
+    const payload = JSON.parse(raw ?? '{}')
+    expect(payload.notes[0].id).toBe('local')
+    expect(onChange).not.toHaveBeenCalled()
+    unsubscribe()
+  })
+
+  it('should emit sync meta with droppedPendingLocal=true when external update overrides local pending', () => {
+    vi.useFakeTimers()
+
+    saveNotes([createNote({ id: 'local', title: 'local-draft' })])
+
+    const onChange = vi.fn()
+    const unsubscribe = subscribeNotesWithMeta(onChange)
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'starnode:notes',
+        newValue: JSON.stringify({
+          schemaVersion: 3,
+          revision: 1,
+          writtenAt: 1000,
+          writerId: 'writer-external',
+          notes: [createNote({ id: 'external', title: 'external' })]
+        })
+      })
+    )
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const [notes, meta] = onChange.mock.calls[0]
+    expect(notes).toEqual([createNote({ id: 'external', title: 'external' })])
+    expect(meta).toEqual({
+      reason: 'external_update',
+      droppedPendingLocal: true
+    })
     unsubscribe()
   })
 })

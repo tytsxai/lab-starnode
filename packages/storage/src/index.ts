@@ -53,6 +53,11 @@ interface ParsedStorageResult {
   version: SnapshotVersion
 }
 
+export interface NotesSyncMeta {
+  reason: 'external_update' | 'external_clear'
+  droppedPendingLocal: boolean
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -280,7 +285,7 @@ export function saveNotes(notes: Note[]): void {
   }, SAVE_THROTTLE_MS)
 }
 
-export function subscribeNotes(onChange: (notes: Note[]) => void): () => void {
+function subscribeNotesInternal(onChange: (notes: Note[], meta: NotesSyncMeta) => void): () => void {
   if (typeof window === 'undefined') return () => {}
 
   const handler = (event: StorageEvent) => {
@@ -288,14 +293,17 @@ export function subscribeNotes(onChange: (notes: Note[]) => void): () => void {
     // key === null 代表外部标签页调用了 localStorage.clear()，需要回收本地状态。
     if (event.key !== STORAGE_KEY && event.key !== null) return
 
-    // 跨标签页一致性原则：持久化层是单一事实源。
-    // 若本标签页存在节流中的待写入快照，此时必须丢弃，
-    // 否则会在稍后 flush 时把“旧世界线”重新写回 localStorage。
-    clearPendingSave()
-
     // 仅处理其他标签页变更；当前标签页写入不会触发该事件。
     if (event.key === null || !event.newValue) {
-      onChange([])
+      const droppedPendingLocal = pendingNotes !== null
+      // 跨标签页一致性原则：持久化层是单一事实源。
+      // 外部已删除/清空快照时，必须丢弃本地 pending save，
+      // 避免稍后 flush 把旧数据“复活”。
+      clearPendingSave()
+      onChange([], {
+        reason: 'external_clear',
+        droppedPendingLocal
+      })
       return
     }
 
@@ -306,11 +314,22 @@ export function subscribeNotes(onChange: (notes: Note[]) => void): () => void {
       // 该分支可规避极端时序下的陈旧事件回放。
       const currentRaw = window.localStorage.getItem(STORAGE_KEY)
       if (currentRaw) {
-        const current = parsePayload(currentRaw)
-        if (compareSnapshotVersion(incoming.version, current.version) < 0) return
+        try {
+          const current = parsePayload(currentRaw)
+          if (compareSnapshotVersion(incoming.version, current.version) < 0) return
+        } catch {
+          // 当前快照损坏时，跳过陈旧校验，优先采用本次可解析的外部快照恢复一致性。
+        }
       }
 
-      onChange(incoming.notes)
+      const droppedPendingLocal = pendingNotes !== null
+      // 仅在确认接收“有效且未过期”的外部快照后才丢弃 pending save。
+      // 这样可以避免 malformed/stale 事件误清空本地待落盘数据。
+      clearPendingSave()
+      onChange(incoming.notes, {
+        reason: 'external_update',
+        droppedPendingLocal
+      })
     } catch {
       // 非法数据直接忽略，避免污染当前会话状态。
     }
@@ -318,4 +337,12 @@ export function subscribeNotes(onChange: (notes: Note[]) => void): () => void {
 
   window.addEventListener('storage', handler)
   return () => window.removeEventListener('storage', handler)
+}
+
+export function subscribeNotesWithMeta(onChange: (notes: Note[], meta: NotesSyncMeta) => void): () => void {
+  return subscribeNotesInternal(onChange)
+}
+
+export function subscribeNotes(onChange: (notes: Note[]) => void): () => void {
+  return subscribeNotesInternal((notes) => onChange(notes))
 }
