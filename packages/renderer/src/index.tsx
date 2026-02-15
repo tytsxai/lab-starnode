@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Line, OrbitControls, Stars, Text, Float } from '@react-three/drei'
 import * as THREE from 'three'
@@ -57,6 +57,13 @@ function PlanetNode({
       meshRef.current.rotation.y += 0.002
     }
   })
+
+  useEffect(() => {
+    return () => {
+      // 防御性清理：若组件在 hover 期间卸载，确保鼠标样式恢复。
+      document.body.style.cursor = 'auto'
+    }
+  }, [])
 
   // Determine color based on stage/health
   const baseColor = new THREE.Color(planet.color)
@@ -148,14 +155,14 @@ export function PlanetCanvas({ planets, links = [], selectedPlanetId, onSelectPl
       <Stars radius={100} depth={50} count={5000} factor={4} saturation={0.5} fade speed={0.5} />
 
       {/* Links */}
-      {links.map((link, index) => {
+      {links.map((link) => {
         const source = positionMap.get(link.sourcePlanetId)
         const target = positionMap.get(link.targetPlanetId)
         if (!source || !target) return null
 
         return (
           <Line
-            key={`${link.sourcePlanetId}-${link.targetPlanetId}-${index}`}
+            key={`${link.sourcePlanetId}-${link.targetPlanetId}`}
             points={[source, target]}
             color="#3b82f6"
             lineWidth={0.8}
