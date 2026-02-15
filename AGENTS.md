@@ -84,8 +84,8 @@
 - `apps/web/lib/noteForm.ts`：编辑输入校验与关键词预览纯函数。
 - `apps/web/lib/batchHelpers.ts`：批量操作计数与映射纯函数（可单测复用）。
 - `apps/web/lib/batchHelpers.test.ts`：批量计数函数单测。
-- `apps/web/lib/noteStore/types.ts`：store 领域状态与输入 DTO 定义（区分导航星球态与编辑草稿星球态）。
-- `apps/web/lib/noteStore/storageAdapter.ts`：store I/O 适配层（load/save 注入点）。
+- `apps/web/lib/noteStore/types.ts`：store 领域状态与输入 DTO 定义（区分导航星球态与编辑草稿星球态，含跨标签页同步提示态）。
+- `apps/web/lib/noteStore/storageAdapter.ts`：store I/O 适配层（load/save 注入点 + 外部同步元数据透传）。
 - `apps/web/lib/noteStore/seedNotes.ts`：本地首次启动种子数据。
 - `apps/web/lib/noteStore/noteCommands.ts`：store 纯命令层（无 Zustand、无 I/O）。
 - `apps/web/lib/noteStore/createNoteStore.ts`：zustand 装配工厂（依赖注入 + 副作用落盘 + 可释放外部订阅）。
@@ -95,7 +95,7 @@
 - `packages/core/src/index.ts`：领域模型、关键词提取、混合关联评分与可解释证据输出（默认仅统计活跃笔记）。
 - `packages/core/src/index.test.ts`：核心规则测试（去噪、混合评分、冻结过滤、排序稳定性）。
 - `packages/renderer/src/index.tsx`：3D 宇宙渲染组件（支持连线与星球点击选中）。
-- `packages/storage/src/index.ts`：本地持久化（schemaVersion + 迁移管线 + 节流写入 + 跨标签页变更订阅 + 脏数据兜底归一化 + revision/writer 元数据与陈旧事件防护）。
+- `packages/storage/src/index.ts`：本地持久化（schemaVersion + 迁移管线 + 节流写入 + 跨标签页变更订阅 + 脏数据兜底归一化 + revision/writer 元数据与陈旧事件防护 + droppedPendingLocal 同步元数据）。
 - `packages/storage/src/index.test.ts`：storage 迁移、节流写入与跨标签页订阅回归测试（含 revision 元数据与陈旧事件过滤验证）。
 - `.nvmrc`：统一 Node LTS 版本，降低 TypeScript 编译器异常风险。
 - `scripts/check-node-version.mjs`：Node 主版本门禁，阻断非 Node 22 环境下的开发/构建/类型检查。
@@ -132,6 +132,7 @@ apps/web
 4. 节流写入 + schema 迁移，优先保证可持续演进而非一次性实现。
 
 ## 变更日志
+- 2026-02-15：完成审计快修：`@starnode/storage` 仅在接收“有效且未过期”的外部快照后才清理本地节流 pending save，避免 malformed/stale `storage` 事件误丢本地待落盘数据，并通过 `subscribeNotesWithMeta` 暴露 `droppedPendingLocal` 元数据；`@starnode/core` 固定星球对 source/target 方向（按字典序）以消除关联面板跳转目标抖动；`apps/web/lib/noteStore/noteCommands.ts` 新增 planetId 白名单守卫，阻断非法目标导致的“隐形笔记”；`apps/web` 在外部覆盖本地未落盘改动时给出同步告警 Toast；`apps/web/lib/noteStore/createNoteStore.ts` 为 `crypto.randomUUID` 缺失环境增加 noteId 兜底生成；`@starnode/renderer` 新增星球节点卸载时鼠标样式兜底恢复，并将连线 key 收敛为稳定星球对键以减少重排时不必要重挂载。
 - 2026-02-14：加固批量操作一致性：`useBatchActions` 统一仅对当前存在的选中项执行迁移/冰封/解冻/删除，规避陈旧选择集误操作；`LinkPanel` 键盘事件新增目标守卫，避免子按钮按键冒泡触发误跳转；补齐对应回归测试。
 - 2026-02-14：完成并发一致性增强：storage payload 新增 `revision/writtenAt/writerId` 元数据；写入时按当前快照递增 revision，订阅侧过滤陈旧 storage 事件，降低多标签页竞争下的状态回退风险。
 - 2026-02-14：完成编辑态解耦：store 新增 `draftPlanetId`，将编辑草稿目标星球与导航 `selectedPlanetId` 分离，避免浏览星球时误改新建/编辑目标。
