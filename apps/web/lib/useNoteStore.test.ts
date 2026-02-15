@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Note } from '@starnode/core'
+import type { NotesSyncMeta } from '@starnode/storage'
 import { createNoteStore } from './noteStore/createNoteStore'
 import type { NoteStorageAdapter } from './noteStore/storageAdapter'
 import { seedNotes } from './noteStore/seedNotes'
@@ -23,14 +24,14 @@ describe('useNoteStore command behavior', () => {
   let saveNotesSpy: ReturnType<typeof vi.fn>
   let subscribeNotesSpy: ReturnType<typeof vi.fn>
   let unsubscribeSpy: ReturnType<typeof vi.fn>
-  let externalChangeHandler: ((notes: Note[]) => void) | null
+  let externalChangeHandler: ((notes: Note[], meta: NotesSyncMeta) => void) | null
   let store: ReturnType<typeof createNoteStore>
 
   beforeEach(() => {
     saveNotesSpy = vi.fn()
     unsubscribeSpy = vi.fn()
     externalChangeHandler = null
-    subscribeNotesSpy = vi.fn((onChange: (notes: Note[]) => void) => {
+    subscribeNotesSpy = vi.fn((onChange: (notes: Note[], meta: NotesSyncMeta) => void) => {
       externalChangeHandler = onChange
       return () => {
         unsubscribeSpy()
@@ -106,6 +107,23 @@ describe('useNoteStore command behavior', () => {
     expect(changed).toBe(0)
     expect(saveNotesSpy).not.toHaveBeenCalled()
     expect(store.getState().undoSnapshot).toBeNull()
+  })
+
+  it('moveNotes 目标星球非法时应 no-op（防止隐形笔记）', () => {
+    store.setState({
+      notes: [createNote({ id: '1', planetId: 'p-life' })],
+      selectedPlanetId: 'p-life',
+      draftPlanetId: 'p-life',
+      editingNoteId: null,
+      undoSnapshot: null,
+      isFocusMode: false
+    })
+
+    const changed = store.getState().moveNotes(['1'], 'p-unknown')
+
+    expect(changed).toBe(0)
+    expect(store.getState().notes.find((note) => note.id === '1')?.planetId).toBe('p-life')
+    expect(saveNotesSpy).not.toHaveBeenCalled()
   })
 
   it('deleteNotes 会清理编辑态并写入 undo 快照', () => {
@@ -190,6 +208,29 @@ describe('useNoteStore command behavior', () => {
     expect(store.getState().editingNoteId).toBeNull()
   })
 
+  it('updateNote 输入非法 planetId 时应回退为原星球', () => {
+    store.setState({
+      notes: [createNote({ id: '1', planetId: 'p-life' })],
+      selectedPlanetId: 'p-life',
+      draftPlanetId: 'p-life',
+      editingNoteId: '1',
+      undoSnapshot: null,
+      isFocusMode: false
+    })
+
+    store.getState().updateNote({
+      noteId: '1',
+      title: 'next',
+      content: 'content',
+      tagsRaw: '',
+      planetId: 'p-invalid'
+    })
+
+    const target = store.getState().notes.find((note) => note.id === '1')
+    expect(target?.planetId).toBe('p-life')
+    expect(store.getState().draftPlanetId).toBe('p-life')
+  })
+
   it('addNote 空输入时应 no-op', () => {
     const before = store.getState().notes.length
 
@@ -221,7 +262,10 @@ describe('useNoteStore command behavior', () => {
       isFocusMode: false
     })
 
-    externalChangeHandler?.([createNote({ id: '2', title: 'from-external' })])
+    externalChangeHandler?.([createNote({ id: '2', title: 'from-external' })], {
+      reason: 'external_update',
+      droppedPendingLocal: false
+    })
 
     const state = store.getState()
     expect(state.notes).toHaveLength(1)
@@ -229,5 +273,28 @@ describe('useNoteStore command behavior', () => {
     expect(state.editingNoteId).toBeNull()
     expect(state.undoSnapshot).toBeNull()
     expect(state.draftPlanetId).toBe('p-tech')
+  })
+
+  it('外部更新覆盖本地待落盘改动时应写入同步告警文案', () => {
+    store.setState({
+      notes: [createNote({ id: '1', title: 'old' })],
+      selectedPlanetId: 'p-life',
+      draftPlanetId: 'p-life',
+      editingNoteId: null,
+      undoSnapshot: null,
+      isFocusMode: false,
+      syncNotice: null
+    })
+
+    externalChangeHandler?.([createNote({ id: '2', title: 'external' })], {
+      reason: 'external_update',
+      droppedPendingLocal: true
+    })
+
+    const state = store.getState()
+    expect(state.syncNotice).toBe('检测到其他标签页更新，当前页面未落盘改动已被覆盖。')
+
+    state.clearSyncNotice()
+    expect(store.getState().syncNotice).toBeNull()
   })
 })

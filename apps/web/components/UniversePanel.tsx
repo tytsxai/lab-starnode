@@ -17,6 +17,8 @@ export function UniversePanel() {
   const setSelectedPlanetId = useNoteStore((state) => state.setSelectedPlanetId)
   const editingNoteId = useNoteStore((state) => state.editingNoteId)
   const isFocusMode = useNoteStore((state) => state.isFocusMode)
+  const syncNotice = useNoteStore((state) => state.syncNotice)
+  const clearSyncNotice = useNoteStore((state) => state.clearSyncNotice)
   const deleteNote = useNoteStore((state) => state.deleteNote)
   const undoSnapshot = useNoteStore((state) => state.undoSnapshot)
   const undoLastAction = useNoteStore((state) => state.undoLastAction)
@@ -124,6 +126,12 @@ export function UniversePanel() {
     const timer = window.setTimeout(() => setToast(null), 2400)
     return () => window.clearTimeout(timer)
   }, [toast])
+
+  useEffect(() => {
+    if (!syncNotice) return
+    setToast(syncNotice)
+    clearSyncNotice()
+  }, [clearSyncNotice, syncNotice])
 
   useEffect(() => {
     // 过滤切换/外部同步后，主动清理不可见或已不存在的选中项，

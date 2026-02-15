@@ -28,11 +28,18 @@ function resolveInitialNotes(storage: NoteStorageAdapter) {
   return local.length > 0 ? local : seedNotes
 }
 
+function createNoteId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `note-${Math.random().toString(36).slice(2)}`
+}
+
 export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
   const deps: CreateNoteStoreDeps = {
     storage: customDeps.storage ?? browserStorageAdapter,
     now: customDeps.now ?? (() => new Date().toISOString()),
-    uuid: customDeps.uuid ?? (() => crypto.randomUUID())
+    uuid: customDeps.uuid ?? createNoteId
   }
 
   const store = create<NoteState>((set) => ({
@@ -41,10 +48,12 @@ export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
     draftPlanetId: 'p-life',
     editingNoteId: null,
     undoSnapshot: null,
+    syncNotice: null,
     isFocusMode: false,
     setSelectedPlanetId: (planetId) => set({ selectedPlanetId: planetId }),
     setDraftPlanetId: (planetId) => set({ draftPlanetId: planetId }),
     setFocusMode: (next) => set({ isFocusMode: next }),
+    clearSyncNotice: () => set({ syncNotice: null }),
     startEditNote: (noteId) => set({ editingNoteId: noteId }),
     cancelEditNote: () => set({ editingNoteId: null }),
     addNote: (input) => {
@@ -117,7 +126,7 @@ export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
     }
   }))
 
-  const unsubscribeExternal = deps.storage.subscribeNotes?.((externalNotes) => {
+  const unsubscribeExternal = deps.storage.subscribeNotes?.((externalNotes, meta) => {
     store.setState((state) => {
       if (areNotesEqual(state.notes, externalNotes)) return state
 
@@ -128,10 +137,15 @@ export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
       const nextEditingNoteId =
         state.editingNoteId && externalNotes.some((note) => note.id === state.editingNoteId) ? state.editingNoteId : null
 
+      const syncNotice = meta?.droppedPendingLocal
+        ? '检测到其他标签页更新，当前页面未落盘改动已被覆盖。'
+        : state.syncNotice
+
       return {
         notes: externalNotes,
         editingNoteId: nextEditingNoteId,
-        undoSnapshot: null
+        undoSnapshot: null,
+        syncNotice
       }
     })
   })

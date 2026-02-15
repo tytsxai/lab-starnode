@@ -25,10 +25,12 @@ export interface NoteState {
   draftPlanetId: string
   editingNoteId: string | null
   undoSnapshot: UndoSnapshot | null
+  syncNotice: string | null
   isFocusMode: boolean
   setSelectedPlanetId: (planetId: string) => void
   setDraftPlanetId: (planetId: string) => void
   setFocusMode: (next: boolean) => void
+  clearSyncNotice: () => void
   startEditNote: (noteId: string) => void
   cancelEditNote: () => void
   addNote: (input: AddNoteInput) => void
