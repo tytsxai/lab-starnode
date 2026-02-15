@@ -279,7 +279,8 @@ export function calculatePlanetLinks(notes: Note[], options: LinkCalculationOpti
     planetAggregateMap.set(note.planetId, aggregate)
   }
 
-  const planetIds = Array.from(planetAggregateMap.keys())
+  // 统一按字典序固定星球对方向，避免因笔记输入顺序变化导致 source/target 抖动。
+  const planetIds = Array.from(planetAggregateMap.keys()).sort(compareLexicographically)
   const links: Array<PlanetLink & { latestUpdatedAt: number; pairKey: string }> = []
 
   for (let i = 0; i < planetIds.length; i += 1) {

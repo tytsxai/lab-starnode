@@ -175,4 +175,20 @@ describe('calculatePlanetLinks', () => {
     expect(links[0].sourcePlanetId).toBe('p-life')
     expect(links[0].targetPlanetId).toBe('p-tech')
   })
+
+  it('should keep source/target orientation stable regardless of note order', () => {
+    const forward: Note[] = [
+      createNote({ id: '1', planetId: 'p-tech', tags: ['focus'] }),
+      createNote({ id: '2', planetId: 'p-life', tags: ['focus'] })
+    ]
+    const reverse: Note[] = [...forward].reverse()
+
+    const forwardLink = calculatePlanetLinks(forward)[0]
+    const reverseLink = calculatePlanetLinks(reverse)[0]
+
+    expect(forwardLink.sourcePlanetId).toBe('p-life')
+    expect(forwardLink.targetPlanetId).toBe('p-tech')
+    expect(reverseLink.sourcePlanetId).toBe('p-life')
+    expect(reverseLink.targetPlanetId).toBe('p-tech')
+  })
 })
