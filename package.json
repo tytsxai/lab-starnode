@@ -20,6 +20,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces --if-present",
-    "ci:verify": "npm run lint && npm run test && npm run typecheck && npm run build"
+    "ci:verify": "npm run lint && npm run test && npm run typecheck && npm run build",
+    "smoke:prod:web": "npm run build --workspace @starnode/web && node scripts/smoke-prod-web.mjs"
   }
 }

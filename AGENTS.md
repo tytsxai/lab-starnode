@@ -11,14 +11,25 @@
 ├─ 05_开发路线图.md
 ├─ 06_生产发布检查清单.md
 ├─ AGENTS.md
+├─ .github/
+│  └─ workflows/
+│     └─ ci-quality-gate.yml
+├─ docs/
+│  └─ 生产运维手册.md
 ├─ .nvmrc
 ├─ package.json
 ├─ scripts/
-│  └─ check-node-version.mjs
+│  ├─ check-node-version.mjs
+│  └─ smoke-prod-web.mjs
 ├─ tsconfig.base.json
 ├─ apps/
 │  └─ web/
 │     ├─ app/
+│     │  ├─ api/
+│     │  │  └─ health/
+│     │  │     └─ route.ts
+│     │  ├─ error.tsx
+│     │  ├─ global-error.tsx
 │     │  ├─ globals.css
 │     │  ├─ layout.tsx
 │     │  └─ page.tsx
@@ -70,6 +81,11 @@
 - `04_商业策略.md`：定义增长飞轮与收入模型。
 - `05_开发路线图.md`：定义阶段执行计划与 DoD。
 - `06_生产发布检查清单.md`：定义上线前后质量门禁、回滚与观察项。
+- `.github/workflows/ci-quality-gate.yml`：主干与 PR 质量门禁流水线（Node 22 + `npm run ci:verify`）。
+- `docs/生产运维手册.md`：定义生产发布、健康检查、故障回滚、日志观测与备份恢复操作。
+- `apps/web/app/api/health/route.ts`：服务健康探针（用于部署平台存活检查与发布后验活）。
+- `apps/web/app/error.tsx`：路由级错误边界（异常降级页 + 结构化错误日志）。
+- `apps/web/app/global-error.tsx`：全局错误边界（严重渲染异常兜底与恢复入口）。
 - `apps/web/app/page.tsx`：MVP 入口页面（编辑 + 宇宙视图挂载）。
 - `apps/web/components/DeferredUniverseScene.tsx`：3D 场景延迟加载网关（idle/降级定时器），降低首屏主线程压力。
 - `apps/web/components/EditorPanel.tsx`：编辑器面板（输入校验、关键词预览、编辑/新建切换，使用独立草稿星球态）。
@@ -92,13 +108,15 @@
 - `apps/web/lib/useNoteStore.ts`：默认浏览器环境 store 单例导出入口（避免 HMR/多实例重复订阅）。
 - `apps/web/lib/useNoteStore.test.ts`：store 命令关键路径测试（no-op、undo、编辑态恢复、计数准确性）。
 - `apps/web/.eslintrc.json`：固定 Next.js ESLint 规则，保证 `next lint` 非交互可执行。
+- `apps/web/next.config.mjs`：Next.js 构建与安全基线配置（生产默认 fail-closed 门禁 + 基础安全响应头）。
 - `packages/core/src/index.ts`：领域模型、关键词提取、混合关联评分与可解释证据输出（默认仅统计活跃笔记）。
 - `packages/core/src/index.test.ts`：核心规则测试（去噪、混合评分、冻结过滤、排序稳定性）。
 - `packages/renderer/src/index.tsx`：3D 宇宙渲染组件（支持连线与星球点击选中）。
-- `packages/storage/src/index.ts`：本地持久化（schemaVersion + 迁移管线 + 节流写入 + 跨标签页变更订阅 + 脏数据兜底归一化 + revision/writer 元数据与陈旧事件防护 + droppedPendingLocal 同步元数据）。
+- `packages/storage/src/index.ts`：本地持久化（schemaVersion + 迁移管线 + 节流写入 + 跨标签页变更订阅 + 脏数据兜底归一化 + revision/writer 元数据与陈旧事件防护 + droppedPendingLocal 同步元数据 + localStorage 不可用/写入失败容错）。
 - `packages/storage/src/index.test.ts`：storage 迁移、节流写入与跨标签页订阅回归测试（含 revision 元数据与陈旧事件过滤验证）。
 - `.nvmrc`：统一 Node LTS 版本，降低 TypeScript 编译器异常风险。
 - `scripts/check-node-version.mjs`：Node 主版本门禁，阻断非 Node 22 环境下的开发/构建/类型检查。
+- `scripts/smoke-prod-web.mjs`：生产构建后自动启动 Next 服务并校验 `/api/health` 与关键安全响应头，用于发布前 smoke gate。
 - `tsconfig.base.json`：monorepo 共享 TypeScript 基础配置（采用 workspace 包解析，避免 path alias 导致的编译器异常）。
 
 ## 模块边界与依赖
@@ -132,6 +150,9 @@ apps/web
 4. 节流写入 + schema 迁移，优先保证可持续演进而非一次性实现。
 
 ## 变更日志
+- 2026-02-16：新增生产发布 smoke gate：根脚本新增 `smoke:prod:web`，执行 `@starnode/web` 生产构建后启动服务并自动校验 `/api/health` 返回与关键安全响应头（`X-Frame-Options`、`X-Content-Type-Options`、`Referrer-Policy`），用于上线前快速验活与安全基线校验；新增 `scripts/smoke-prod-web.mjs`。
+- 2026-02-16：完成交互与性能稳态优化：`@starnode/core` 新增 `calculateUniverseSnapshot`（基于 `WeakMap<notesRef, snapshot>` 的只读快照缓存），统一产出 `planets + links`，减少同一渲染周期在 `UniversePanel` 与 `UniverseScene` 的重复关联计算；`apps/web/lib/noteStore/noteCommands.ts` 为 `updateNote` 增加“内容未变化”短路（仅退出编辑态，不触发落盘与无意义 `updatedAt` 变更）；`apps/web/lib/noteStore/createNoteStore.ts` 为 `setSelectedPlanetId/setDraftPlanetId` 增加星球白名单守卫并抑制同值更新，且增强 `noteId` fallback 生成策略（时间戳 + 递增计数）；补齐 `packages/core` 与 `apps/web` 对应回归测试，确保缓存命中语义与状态守卫行为可回归验证。
+- 2026-02-16：完成生产就绪补强：`apps/web/next.config.mjs` 改为生产默认 fail-closed（TS/ESLint 错误不再静默放行），并增加 `STARNODE_ALLOW_UNSAFE_BUILD=1` 本地临时旁路开关；新增全站基础安全响应头（`X-Frame-Options`、`X-Content-Type-Options`、`Referrer-Policy`、`Permissions-Policy`）与 `poweredByHeader` 关闭；新增 `apps/web/app/error.tsx` 与 `apps/web/app/global-error.tsx` 异常兜底页并输出结构化错误日志；新增 `/api/health` 健康探针；`@starnode/storage` 为 localStorage 不可用（SecurityError）与写入失败（配额/策略）增加容错捕获，避免定时保存回调导致前端崩溃，并补齐回归测试；新增 `.github/workflows/ci-quality-gate.yml` 保障主干质量门禁自动化；补充 `docs/生产运维手册.md`，覆盖发布前验证、健康检查、日志观测、备份恢复与回滚流程；同步更新 `06_生产发布检查清单.md` 的健康探针、数据备份演练与日志核查项。
 - 2026-02-15：完成审计快修：`@starnode/storage` 仅在接收“有效且未过期”的外部快照后才清理本地节流 pending save，避免 malformed/stale `storage` 事件误丢本地待落盘数据，并通过 `subscribeNotesWithMeta` 暴露 `droppedPendingLocal` 元数据；`@starnode/core` 固定星球对 source/target 方向（按字典序）以消除关联面板跳转目标抖动；`apps/web/lib/noteStore/noteCommands.ts` 新增 planetId 白名单守卫，阻断非法目标导致的“隐形笔记”；`apps/web` 在外部覆盖本地未落盘改动时给出同步告警 Toast；`apps/web/lib/noteStore/createNoteStore.ts` 为 `crypto.randomUUID` 缺失环境增加 noteId 兜底生成；`@starnode/renderer` 新增星球节点卸载时鼠标样式兜底恢复，并将连线 key 收敛为稳定星球对键以减少重排时不必要重挂载。
 - 2026-02-14：加固批量操作一致性：`useBatchActions` 统一仅对当前存在的选中项执行迁移/冰封/解冻/删除，规避陈旧选择集误操作；`LinkPanel` 键盘事件新增目标守卫，避免子按钮按键冒泡触发误跳转；补齐对应回归测试。
 - 2026-02-14：完成并发一致性增强：storage payload 新增 `revision/writtenAt/writerId` 元数据；写入时按当前快照递增 revision，订阅侧过滤陈旧 storage 事件，降低多标签页竞争下的状态回退风险。
