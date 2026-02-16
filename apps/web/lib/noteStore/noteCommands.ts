@@ -36,6 +36,14 @@ function noChangeResult(): CommandResult {
   }
 }
 
+function areStringArraysEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false
+  for (let i = 0; i < left.length; i += 1) {
+    if (left[i] !== right[i]) return false
+  }
+  return true
+}
+
 function resolvePlanetId(inputPlanetId: string, fallbackPlanetId: string): string {
   return VALID_PLANET_IDS.has(inputPlanetId) ? inputPlanetId : fallbackPlanetId
 }
@@ -74,14 +82,36 @@ export function updateNoteCommand(
   const target = state.notes.find((note) => note.id === input.noteId)
   if (!target) return noChangeResult()
   const nextPlanetId = resolvePlanetId(input.planetId, target.planetId)
+  const nextTitle = input.title.trim() || '未命名笔记'
+  const nextContent = input.content
+  const nextTags = normalizeTags(input.tagsRaw)
+
+  const noteContentUnchanged =
+    target.title === nextTitle &&
+    target.content === nextContent &&
+    target.planetId === nextPlanetId &&
+    areStringArraysEqual(target.tags, nextTags)
+
+  // 仅 UI 状态发生变化（退出编辑），不需要触发持久化写入。
+  if (noteContentUnchanged) {
+    return {
+      patch: {
+        draftPlanetId: nextPlanetId,
+        editingNoteId: null,
+        undoSnapshot: null
+      },
+      changedCount: 1,
+      shouldPersist: false
+    }
+  }
 
   const nextNotes = state.notes.map((note) => {
     if (note.id !== input.noteId) return note
     return {
       ...note,
-      title: input.title.trim() || '未命名笔记',
-      content: input.content,
-      tags: normalizeTags(input.tagsRaw),
+      title: nextTitle,
+      content: nextContent,
+      tags: nextTags,
       planetId: nextPlanetId,
       updatedAt: ctx.now()
     }

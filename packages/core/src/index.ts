@@ -61,6 +61,7 @@ const DEFAULT_KEYWORD_WEIGHT = 1
 const DEFAULT_EVIDENCE_COUNT = 5
 const MIN_KEYWORD_LENGTH = 2
 const MAX_KEYWORDS_PER_NOTE = 12
+const linkCacheByNotesRef = new WeakMap<Note[], Map<string, PlanetLink[]>>()
 
 const STOPWORDS = new Set<string>([
   'a',
@@ -156,6 +157,26 @@ function stablePairKey(sourcePlanetId: string, targetPlanetId: string): string {
   return `${sourcePlanetId}|${targetPlanetId}`
 }
 
+function resolveLinkOptions(options: LinkCalculationOptions) {
+  return {
+    includeFrozen: options.includeFrozen ?? false,
+    tagWeight: options.tagWeight ?? DEFAULT_TAG_WEIGHT,
+    keywordWeight: options.keywordWeight ?? DEFAULT_KEYWORD_WEIGHT,
+    maxEvidenceCount: options.maxEvidenceCount ?? DEFAULT_EVIDENCE_COUNT
+  }
+}
+
+function buildLinkCacheKey(options: ReturnType<typeof resolveLinkOptions>): string {
+  return `${options.includeFrozen ? 1 : 0}|${options.tagWeight}|${options.keywordWeight}|${options.maxEvidenceCount}`
+}
+
+interface UniverseSnapshot {
+  planets: PlanetViewModel[]
+  links: PlanetLink[]
+}
+
+const universeSnapshotCache = new WeakMap<Note[], UniverseSnapshot>()
+
 export function calculatePlanetStats(notes: Note[], options: PlanetStatsOptions = {}): PlanetViewModel[] {
   const includeFrozen = options.includeFrozen ?? false
   const grouped = new Map<string, Note[]>()
@@ -240,10 +261,13 @@ interface PlanetKeywordAggregate {
 }
 
 export function calculatePlanetLinks(notes: Note[], options: LinkCalculationOptions = {}): PlanetLink[] {
-  const includeFrozen = options.includeFrozen ?? false
-  const tagWeight = options.tagWeight ?? DEFAULT_TAG_WEIGHT
-  const keywordWeight = options.keywordWeight ?? DEFAULT_KEYWORD_WEIGHT
-  const maxEvidenceCount = options.maxEvidenceCount ?? DEFAULT_EVIDENCE_COUNT
+  const resolvedOptions = resolveLinkOptions(options)
+  const cacheKey = buildLinkCacheKey(resolvedOptions)
+  const cacheForNotes = linkCacheByNotesRef.get(notes)
+  const cached = cacheForNotes?.get(cacheKey)
+  if (cached) return cached
+
+  const { includeFrozen, tagWeight, keywordWeight, maxEvidenceCount } = resolvedOptions
 
   const planetAggregateMap = new Map<string, PlanetKeywordAggregate>()
 
@@ -335,7 +359,7 @@ export function calculatePlanetLinks(notes: Note[], options: LinkCalculationOpti
     }
   }
 
-  return links
+  const result = links
     .sort((a, b) => {
       if (b.scoreBreakdown.total !== a.scoreBreakdown.total) {
         return b.scoreBreakdown.total - a.scoreBreakdown.total
@@ -346,8 +370,28 @@ export function calculatePlanetLinks(notes: Note[], options: LinkCalculationOpti
       return compareLexicographically(a.pairKey, b.pairKey)
     })
     .map(({ latestUpdatedAt: _latestUpdatedAt, pairKey: _pairKey, ...link }) => link)
+
+  const nextCacheForNotes = cacheForNotes ?? new Map<string, PlanetLink[]>()
+  nextCacheForNotes.set(cacheKey, result)
+  if (!cacheForNotes) {
+    linkCacheByNotesRef.set(notes, nextCacheForNotes)
+  }
+
+  return result
 }
 
 export function getPlanetOptions(): PlanetConfig[] {
   return PLANET_CONFIGS
+}
+
+export function calculateUniverseSnapshot(notes: Note[]): UniverseSnapshot {
+  const cached = universeSnapshotCache.get(notes)
+  if (cached) return cached
+
+  const snapshot: UniverseSnapshot = {
+    planets: calculatePlanetStats(notes),
+    links: calculatePlanetLinks(notes)
+  }
+  universeSnapshotCache.set(notes, snapshot)
+  return snapshot
 }

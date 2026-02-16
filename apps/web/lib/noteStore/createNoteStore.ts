@@ -1,5 +1,6 @@
 'use client'
 
+import { PLANET_CONFIGS } from '@starnode/core'
 import { create } from 'zustand'
 import { browserStorageAdapter, type NoteStorageAdapter } from './storageAdapter'
 import { seedNotes } from './seedNotes'
@@ -20,6 +21,9 @@ interface CreateNoteStoreDeps {
   uuid: () => string
 }
 
+const VALID_PLANET_IDS = new Set(PLANET_CONFIGS.map((planet) => planet.id))
+let fallbackNoteIdCounter = 0
+
 function resolveInitialNotes(storage: NoteStorageAdapter) {
   const local = storage.loadNotes()
   if (storage.hasNotesSnapshot) {
@@ -32,7 +36,8 @@ function createNoteId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
-  return `note-${Math.random().toString(36).slice(2)}`
+  fallbackNoteIdCounter += 1
+  return `note-${Date.now()}-${fallbackNoteIdCounter}`
 }
 
 export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
@@ -50,8 +55,16 @@ export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
     undoSnapshot: null,
     syncNotice: null,
     isFocusMode: false,
-    setSelectedPlanetId: (planetId) => set({ selectedPlanetId: planetId }),
-    setDraftPlanetId: (planetId) => set({ draftPlanetId: planetId }),
+    setSelectedPlanetId: (planetId) =>
+      set((state) => {
+        if (!VALID_PLANET_IDS.has(planetId) || planetId === state.selectedPlanetId) return state
+        return { selectedPlanetId: planetId }
+      }),
+    setDraftPlanetId: (planetId) =>
+      set((state) => {
+        if (!VALID_PLANET_IDS.has(planetId) || planetId === state.draftPlanetId) return state
+        return { draftPlanetId: planetId }
+      }),
     setFocusMode: (next) => set({ isFocusMode: next }),
     clearSyncNotice: () => set({ syncNotice: null }),
     startEditNote: (noteId) => set({ editingNoteId: noteId }),

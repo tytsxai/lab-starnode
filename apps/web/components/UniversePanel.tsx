@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { calculatePlanetLinks, getPlanetOptions } from '@starnode/core'
+import { calculateUniverseSnapshot, getPlanetOptions } from '@starnode/core'
 import { useNoteStore } from '../lib/useNoteStore'
 import { LinkPanel } from './LinkPanel'
 import { NoteListOverlay } from './universe/NoteListOverlay'
@@ -83,7 +83,8 @@ export function UniversePanel() {
   }, [query.activeTag, query.searchTerm, query.sortBy, query.visibilityMode, selectedNotes])
   const filteredNoteMap = useMemo(() => new Map(filteredNotes.map((note) => [note.id, note])), [filteredNotes])
   const planetNameMap = useMemo(() => new Map(PLANET_OPTIONS.map((planet) => [planet.id, planet.name])), [])
-  const allPlanetLinks = useMemo(() => calculatePlanetLinks(notes), [notes])
+  const snapshot = useMemo(() => calculateUniverseSnapshot(notes), [notes])
+  const allPlanetLinks = snapshot.links
   const visibleLinks = useMemo(() => {
     const scoped = allPlanetLinks.filter((link) => {
       if (showAllLinks) return true

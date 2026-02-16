@@ -231,6 +231,48 @@ describe('useNoteStore command behavior', () => {
     expect(store.getState().draftPlanetId).toBe('p-life')
   })
 
+  it('updateNote 内容未变化时应退出编辑且不触发落盘', () => {
+    store.setState({
+      notes: [createNote({ id: '1', title: 'same', content: 'body', tags: ['alpha'], planetId: 'p-life' })],
+      selectedPlanetId: 'p-life',
+      draftPlanetId: 'p-life',
+      editingNoteId: '1',
+      undoSnapshot: null,
+      isFocusMode: false
+    })
+
+    store.getState().updateNote({
+      noteId: '1',
+      title: 'same',
+      content: 'body',
+      tagsRaw: 'alpha',
+      planetId: 'p-life'
+    })
+
+    const state = store.getState()
+    expect(state.editingNoteId).toBeNull()
+    expect(state.notes[0].updatedAt).toBe('2026-02-14T00:00:00.000Z')
+    expect(saveNotesSpy).not.toHaveBeenCalled()
+  })
+
+  it('setSelectedPlanetId / setDraftPlanetId 遇到非法值时应忽略，避免状态漂移', () => {
+    store.setState({
+      notes: [createNote({ id: '1' })],
+      selectedPlanetId: 'p-life',
+      draftPlanetId: 'p-tech',
+      editingNoteId: null,
+      undoSnapshot: null,
+      isFocusMode: false
+    })
+
+    store.getState().setSelectedPlanetId('p-invalid')
+    store.getState().setDraftPlanetId('p-invalid')
+
+    const state = store.getState()
+    expect(state.selectedPlanetId).toBe('p-life')
+    expect(state.draftPlanetId).toBe('p-tech')
+  })
+
   it('addNote 空输入时应 no-op', () => {
     const before = store.getState().notes.length
 

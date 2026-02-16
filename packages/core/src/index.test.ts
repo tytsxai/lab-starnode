@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  calculateUniverseSnapshot,
   calculatePlanetLinks,
   calculatePlanetStats,
   extractKeywordMap,
@@ -190,5 +191,48 @@ describe('calculatePlanetLinks', () => {
     expect(forwardLink.targetPlanetId).toBe('p-tech')
     expect(reverseLink.sourcePlanetId).toBe('p-life')
     expect(reverseLink.targetPlanetId).toBe('p-tech')
+  })
+
+  it('should reuse cached result for same notes reference and same options', () => {
+    const notes: Note[] = [
+      createNote({ id: '1', planetId: 'p-tech', tags: ['focus'] }),
+      createNote({ id: '2', planetId: 'p-life', tags: ['focus'] })
+    ]
+
+    const first = calculatePlanetLinks(notes)
+    const second = calculatePlanetLinks(notes)
+
+    expect(second).toBe(first)
+  })
+})
+
+describe('calculateUniverseSnapshot', () => {
+  it('should reuse cached snapshot for the same notes array reference', () => {
+    const notes: Note[] = [
+      createNote({ id: '1', planetId: 'p-life', tags: ['focus'] }),
+      createNote({ id: '2', planetId: 'p-tech', tags: ['focus'] })
+    ]
+
+    const first = calculateUniverseSnapshot(notes)
+    const second = calculateUniverseSnapshot(notes)
+
+    expect(second).toBe(first)
+    expect(second.planets).toBe(first.planets)
+    expect(second.links).toBe(first.links)
+  })
+
+  it('should recalculate snapshot when notes array reference changes', () => {
+    const base: Note[] = [
+      createNote({ id: '1', planetId: 'p-life', tags: ['focus'] }),
+      createNote({ id: '2', planetId: 'p-tech', tags: ['focus'] })
+    ]
+    const next = [...base]
+
+    const first = calculateUniverseSnapshot(base)
+    const second = calculateUniverseSnapshot(next)
+
+    expect(second).not.toBe(first)
+    expect(second.planets).not.toBe(first.planets)
+    expect(second.links).not.toBe(first.links)
   })
 })
