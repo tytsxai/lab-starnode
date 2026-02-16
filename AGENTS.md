@@ -4,6 +4,8 @@
 
 ```txt
 .
+├─ README.md
+├─ CONTRIBUTING.md
 ├─ 01_项目愿景.md
 ├─ 02_产品需求文档.md
 ├─ 03_技术架构.md
@@ -75,6 +77,8 @@
 ```
 
 ## 文件职责（一句话版）
+- `README.md`：项目首页入口文档（定位、能力、快速开始、命令与文档导航）。
+- `CONTRIBUTING.md`：贡献流程与质量门禁约定（分层边界、提交流程、PR 模板）。
 - `01_项目愿景.md`：定义 StarNode 的长期方向与产品哲学。
 - `02_产品需求文档.md`：定义功能范围、验收标准与里程碑。
 - `03_技术架构.md`：定义分层架构、数据模型与技术决策。
@@ -150,6 +154,7 @@ apps/web
 4. 节流写入 + schema 迁移，优先保证可持续演进而非一次性实现。
 
 ## 变更日志
+- 2026-02-16：新增仓库外部协作文档：补充 `README.md`（项目简介、快速开始、命令、健康检查、文档导航）与 `CONTRIBUTING.md`（贡献流程、分层边界、提交前检查与 PR 模板），提升 GitHub 首屏可读性与协作友好度。
 - 2026-02-16：新增生产发布 smoke gate：根脚本新增 `smoke:prod:web`，执行 `@starnode/web` 生产构建后启动服务并自动校验 `/api/health` 返回与关键安全响应头（`X-Frame-Options`、`X-Content-Type-Options`、`Referrer-Policy`），用于上线前快速验活与安全基线校验；新增 `scripts/smoke-prod-web.mjs`。
 - 2026-02-16：完成交互与性能稳态优化：`@starnode/core` 新增 `calculateUniverseSnapshot`（基于 `WeakMap<notesRef, snapshot>` 的只读快照缓存），统一产出 `planets + links`，减少同一渲染周期在 `UniversePanel` 与 `UniverseScene` 的重复关联计算；`apps/web/lib/noteStore/noteCommands.ts` 为 `updateNote` 增加“内容未变化”短路（仅退出编辑态，不触发落盘与无意义 `updatedAt` 变更）；`apps/web/lib/noteStore/createNoteStore.ts` 为 `setSelectedPlanetId/setDraftPlanetId` 增加星球白名单守卫并抑制同值更新，且增强 `noteId` fallback 生成策略（时间戳 + 递增计数）；补齐 `packages/core` 与 `apps/web` 对应回归测试，确保缓存命中语义与状态守卫行为可回归验证。
 - 2026-02-16：完成生产就绪补强：`apps/web/next.config.mjs` 改为生产默认 fail-closed（TS/ESLint 错误不再静默放行），并增加 `STARNODE_ALLOW_UNSAFE_BUILD=1` 本地临时旁路开关；新增全站基础安全响应头（`X-Frame-Options`、`X-Content-Type-Options`、`Referrer-Policy`、`Permissions-Policy`）与 `poweredByHeader` 关闭；新增 `apps/web/app/error.tsx` 与 `apps/web/app/global-error.tsx` 异常兜底页并输出结构化错误日志；新增 `/api/health` 健康探针；`@starnode/storage` 为 localStorage 不可用（SecurityError）与写入失败（配额/策略）增加容错捕获，避免定时保存回调导致前端崩溃，并补齐回归测试；新增 `.github/workflows/ci-quality-gate.yml` 保障主干质量门禁自动化；补充 `docs/生产运维手册.md`，覆盖发布前验证、健康检查、日志观测、备份恢复与回滚流程；同步更新 `06_生产发布检查清单.md` 的健康探针、数据备份演练与日志核查项。
