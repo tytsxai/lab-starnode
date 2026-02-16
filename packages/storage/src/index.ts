@@ -12,6 +12,7 @@ const EMPTY_VERSION: SnapshotVersion = {
   writerId: ''
 }
 const SESSION_WRITER_ID = createSessionWriterId()
+let hasLoggedStorageUnavailable = false
 
 interface SnapshotVersion {
   revision: number
@@ -58,6 +59,20 @@ export interface NotesSyncMeta {
   droppedPendingLocal: boolean
 }
 
+function getLocalStorageSafely(): Storage | null {
+  if (typeof window === 'undefined') return null
+
+  try {
+    return window.localStorage
+  } catch (error) {
+    if (!hasLoggedStorageUnavailable) {
+      hasLoggedStorageUnavailable = true
+      console.error('[StarNode][storage-unavailable]', error)
+    }
+    return null
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -98,12 +113,17 @@ function buildPayload(notes: Note[], version: SnapshotVersion): StoragePayloadV3
   }
 }
 
-function readPersistedVersion(): SnapshotVersion {
-  if (typeof window === 'undefined') return EMPTY_VERSION
-  const raw = window.localStorage.getItem(STORAGE_KEY)
-  if (!raw) return EMPTY_VERSION
+interface NormalizeNoteResult {
+  note: Note | null
+  changed: boolean
+}
 
+function readPersistedVersion(): SnapshotVersion {
+  const storage = getLocalStorageSafely()
+  if (!storage) return EMPTY_VERSION
   try {
+    const raw = storage.getItem(STORAGE_KEY)
+    if (!raw) return EMPTY_VERSION
     return parsePayload(raw).version
   } catch {
     return EMPTY_VERSION
@@ -118,14 +138,24 @@ function createNextVersion(baseVersion: SnapshotVersion): SnapshotVersion {
   }
 }
 
-function normalizeNote(value: Record<string, unknown>): Note | null {
+function normalizeNoteWithMeta(value: unknown): NormalizeNoteResult {
+  if (!isRecord(value)) {
+    return {
+      note: null,
+      changed: true
+    }
+  }
+
   if (
     typeof value.id !== 'string' ||
     typeof value.title !== 'string' ||
     typeof value.content !== 'string' ||
     typeof value.planetId !== 'string'
   ) {
-    return null
+    return {
+      note: null,
+      changed: true
+    }
   }
 
   const normalizedPlanetId = VALID_PLANET_IDS.has(value.planetId) ? value.planetId : FALLBACK_PLANET_ID
@@ -134,17 +164,31 @@ function normalizeNote(value: Record<string, unknown>): Note | null {
       ? value.updatedAt
       : FALLBACK_UPDATED_AT
 
-  return {
+  const normalizedTags = Array.isArray(value.tags) ? value.tags.filter((tag): tag is string => typeof tag === 'string') : []
+  const normalizedFrozenAt = typeof value.frozenAt === 'string' ? value.frozenAt : null
+  const note: Note = {
     id: value.id,
     title: value.title,
     content: value.content,
-    tags: Array.isArray(value.tags) ? value.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+    tags: normalizedTags,
     // 非法星球 ID 会导致笔记在 UI 中“隐形”，这里统一兜底到默认星球。
     planetId: normalizedPlanetId,
     // 非法时间会破坏排序稳定性，统一回退到固定时间戳。
     updatedAt: normalizedUpdatedAt,
     isFrozen: value.isFrozen === true,
-    frozenAt: typeof value.frozenAt === 'string' ? value.frozenAt : null
+    frozenAt: normalizedFrozenAt
+  }
+
+  const rawTags = Array.isArray(value.tags) ? value.tags : []
+  const changed =
+    normalizedPlanetId !== value.planetId ||
+    normalizedUpdatedAt !== value.updatedAt ||
+    normalizedFrozenAt !== value.frozenAt ||
+    rawTags.length !== normalizedTags.length
+
+  return {
+    note,
+    changed
   }
 }
 
@@ -158,8 +202,21 @@ function migrateV1ToV2(notes: LegacyNoteV1[]): LegacyNoteV2[] {
 
 function migrateV2ToV3(notes: LegacyNoteV2[]): Note[] {
   return notes
-    .map((note) => normalizeNote(note as unknown as Record<string, unknown>))
+    .map((note) => normalizeNoteWithMeta(note).note)
     .filter((note): note is Note => note !== null)
+}
+
+function normalizeNotesWithRewrite(rawNotes: unknown[]): { notes: Note[]; hadRewrite: boolean } {
+  let hadRewrite = false
+  const notes: Note[] = []
+
+  for (const rawNote of rawNotes) {
+    const { note, changed } = normalizeNoteWithMeta(rawNote)
+    if (!note || changed) hadRewrite = true
+    if (note) notes.push(note)
+  }
+
+  return { notes, hadRewrite }
 }
 
 function parsePayload(raw: string): ParsedStorageResult {
@@ -200,26 +257,31 @@ function parsePayload(raw: string): ParsedStorageResult {
     }
   }
 
+  const normalized = normalizeNotesWithRewrite(rawNotes)
   return {
-    needsRewrite: schemaVersion !== SCHEMA_VERSION,
-    notes: (rawNotes as Array<Partial<Note>>)
-      .map((note) => normalizeNote(note as unknown as Record<string, unknown>))
-      .filter((note): note is Note => note !== null),
+    needsRewrite: schemaVersion !== SCHEMA_VERSION || normalized.hadRewrite,
+    notes: normalized.notes,
     version
   }
 }
 
 export function loadNotes(): Note[] {
-  if (typeof window === 'undefined') return []
-  const raw = window.localStorage.getItem(STORAGE_KEY)
-  if (!raw) return []
+  const storage = getLocalStorageSafely()
+  if (!storage) return []
 
   try {
+    const raw = storage.getItem(STORAGE_KEY)
+    if (!raw) return []
     const payload = parsePayload(raw)
 
     // 读时迁移，确保后续写入统一为最新版本。
     if (payload.needsRewrite) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(buildPayload(payload.notes, payload.version)))
+      try {
+        storage.setItem(STORAGE_KEY, JSON.stringify(buildPayload(payload.notes, payload.version)))
+      } catch (error) {
+        // 迁移回写失败不应影响读取结果，避免把可用快照误判为空。
+        console.error('[storage] 回写迁移快照失败，将继续使用内存中的已解析数据。', error)
+      }
     }
 
     return payload.notes
@@ -229,20 +291,44 @@ export function loadNotes(): Note[] {
 }
 
 export function hasNotesSnapshot(): boolean {
-  if (typeof window === 'undefined') return false
-  return window.localStorage.getItem(STORAGE_KEY) !== null
+  const storage = getLocalStorageSafely()
+  if (!storage) return false
+  try {
+    return storage.getItem(STORAGE_KEY) !== null
+  } catch {
+    return false
+  }
 }
 
 function flushNotes(): void {
-  if (typeof window === 'undefined') return
-  if (!pendingNotes) return
+  if (typeof window === 'undefined') {
+    pendingSaveTimer = null
+    return
+  }
+  if (!pendingNotes) {
+    pendingSaveTimer = null
+    return
+  }
+
+  const storage = getLocalStorageSafely()
+  if (!storage) {
+    pendingSaveTimer = null
+    return
+  }
 
   const persistedVersion = readPersistedVersion()
   const nextVersion = createNextVersion(persistedVersion)
   const payload = buildPayload(pendingNotes, nextVersion)
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
-  pendingNotes = null
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    pendingNotes = null
+  } catch (error) {
+    // localStorage 可能因配额耗尽、隐私模式策略等原因写入失败。
+    // 这里必须吞掉异常，避免定时器回调把整个应用打崩；
+    // 并保留 pendingNotes，等待后续用户操作触发再次保存。
+    console.error('[StarNode][storage-save-failed]', error)
+  }
   pendingSaveTimer = null
 }
 
@@ -271,11 +357,21 @@ function clearPendingSave(): void {
   pendingNotes = null
 }
 
+function cloneNotesSnapshot(notes: Note[]): Note[] {
+  return notes.map((note) => ({
+    ...note,
+    tags: [...note.tags]
+  }))
+}
+
 export function saveNotes(notes: Note[]): void {
   if (typeof window === 'undefined') return
+  if (!getLocalStorageSafely()) return
 
   bindLifecycleFlush()
-  pendingNotes = notes
+  // 持久化层应持有输入快照，而不是业务层可变引用。
+  // 否则在 flush 触发前若上游数组被原地修改，落盘内容会出现“时间穿越”。
+  pendingNotes = cloneNotesSnapshot(notes)
   if (pendingSaveTimer !== null) {
     window.clearTimeout(pendingSaveTimer)
   }
@@ -287,9 +383,11 @@ export function saveNotes(notes: Note[]): void {
 
 function subscribeNotesInternal(onChange: (notes: Note[], meta: NotesSyncMeta) => void): () => void {
   if (typeof window === 'undefined') return () => {}
+  const storage = getLocalStorageSafely()
+  if (!storage) return () => {}
 
   const handler = (event: StorageEvent) => {
-    if (event.storageArea && event.storageArea !== window.localStorage) return
+    if (event.storageArea && event.storageArea !== storage) return
     // key === null 代表外部标签页调用了 localStorage.clear()，需要回收本地状态。
     if (event.key !== STORAGE_KEY && event.key !== null) return
 
@@ -312,7 +410,7 @@ function subscribeNotesInternal(onChange: (notes: Note[], meta: NotesSyncMeta) =
 
       // 防御式校验：若事件载荷落后于当前 localStorage 快照，则直接丢弃。
       // 该分支可规避极端时序下的陈旧事件回放。
-      const currentRaw = window.localStorage.getItem(STORAGE_KEY)
+      const currentRaw = storage.getItem(STORAGE_KEY)
       if (currentRaw) {
         try {
           const current = parsePayload(currentRaw)

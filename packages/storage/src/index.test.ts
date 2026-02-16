@@ -102,6 +102,52 @@ describe('storage migration and throttle', () => {
     const [note] = loadNotes()
     expect(note.planetId).toBe('p-life')
     expect(note.updatedAt).toBe('1970-01-01T00:00:00.000Z')
+
+    const rewritten = JSON.parse(window.localStorage.getItem('starnode:notes') ?? '{}')
+    expect(rewritten.notes[0].planetId).toBe('p-life')
+    expect(rewritten.notes[0].updatedAt).toBe('1970-01-01T00:00:00.000Z')
+  })
+
+  it('should still return parsed notes when migration rewrite fails', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    window.localStorage.setItem(
+      'starnode:notes',
+      JSON.stringify([
+        {
+          id: 'legacy-1',
+          title: 'legacy',
+          content: 'content',
+          tags: ['a'],
+          planetId: 'p-life',
+          updatedAt: '2026-02-14T00:00:00.000Z'
+        }
+      ])
+    )
+
+    const setItemSpy = vi.fn(() => {
+      throw new Error('QuotaExceededError')
+    })
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => storageMap.get(key) ?? null,
+        setItem: setItemSpy,
+        removeItem: (key: string) => {
+          storageMap.delete(key)
+        },
+        clear: () => {
+          storageMap.clear()
+        }
+      }
+    })
+
+    const notes = loadNotes()
+    expect(notes).toHaveLength(1)
+    expect(notes[0].id).toBe('legacy-1')
+    expect(setItemSpy).toHaveBeenCalledTimes(1)
+    expect(consoleErrorSpy).toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
   })
 
   it('should throttle save and keep latest payload', () => {
@@ -128,6 +174,21 @@ describe('storage migration and throttle', () => {
     expect(payload.writerId.length).toBeGreaterThan(0)
   })
 
+  it('should persist snapshot value even if caller mutates source array before flush', () => {
+    vi.useFakeTimers()
+
+    const notes = [createNote({ id: 'a', title: 'snapshot' })]
+    saveNotes(notes)
+    notes[0].title = 'mutated-after-save'
+
+    vi.advanceTimersByTime(300)
+
+    const raw = window.localStorage.getItem('starnode:notes')
+    expect(raw).not.toBeNull()
+    const payload = JSON.parse(raw ?? '{}')
+    expect(payload.notes[0].title).toBe('snapshot')
+  })
+
   it('should flush pending notes on pagehide before throttle timeout', () => {
     vi.useFakeTimers()
     const next = [createNote({ id: 'a', title: 'flush-on-hide' })]
@@ -141,6 +202,50 @@ describe('storage migration and throttle', () => {
     const payload = JSON.parse(raw ?? '{}')
     expect(payload.schemaVersion).toBe(3)
     expect(payload.notes[0].title).toBe('flush-on-hide')
+  })
+
+  it('should not throw when localStorage setItem fails', () => {
+    vi.useFakeTimers()
+
+    const setItemSpy = vi.fn(() => {
+      throw new Error('QuotaExceededError')
+    })
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: () => null,
+        setItem: setItemSpy,
+        removeItem: () => {},
+        clear: () => {}
+      }
+    })
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    saveNotes([createNote({ id: 'a', title: 'will-fail' })])
+
+    expect(() => vi.advanceTimersByTime(300)).not.toThrow()
+    expect(setItemSpy).toHaveBeenCalledTimes(1)
+    expect(consoleErrorSpy).toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('should gracefully fallback when localStorage is unavailable', () => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get: () => {
+        throw new Error('SecurityError')
+      }
+    })
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(loadNotes()).toEqual([])
+    expect(hasNotesSnapshot()).toBe(false)
+    expect(() => saveNotes([createNote({ id: 'fallback' })])).not.toThrow()
+    const unsubscribe = subscribeNotes(() => {})
+    expect(typeof unsubscribe).toBe('function')
+    unsubscribe()
+    expect(consoleErrorSpy).toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
   })
 
   it('should notify subscribers when notes changed from another tab', () => {
