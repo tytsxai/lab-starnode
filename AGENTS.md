@@ -21,6 +21,7 @@
 ├─ .nvmrc
 ├─ package.json
 ├─ scripts/
+│  ├─ check-build-safety.mjs
 │  ├─ check-node-version.mjs
 │  └─ smoke-prod-web.mjs
 ├─ tsconfig.base.json
@@ -29,6 +30,7 @@
 │     ├─ app/
 │     │  ├─ api/
 │     │  │  └─ health/
+│     │  │     ├─ route.test.ts
 │     │  │     └─ route.ts
 │     │  ├─ error.tsx
 │     │  ├─ global-error.tsx
@@ -87,7 +89,9 @@
 - `06_生产发布检查清单.md`：定义上线前后质量门禁、回滚与观察项。
 - `.github/workflows/ci-quality-gate.yml`：主干与 PR 质量门禁流水线（Node 22 + `npm run ci:verify`）。
 - `docs/生产运维手册.md`：定义生产发布、健康检查、故障回滚、日志观测与备份恢复操作。
+- `scripts/check-build-safety.mjs`：构建安全门禁（禁止 CI/托管环境误开 `STARNODE_ALLOW_UNSAFE_BUILD=1`）。
 - `apps/web/app/api/health/route.ts`：服务健康探针（用于部署平台存活检查与发布后验活）。
+- `apps/web/app/api/health/route.test.ts`：健康探针回归测试（GET/HEAD、缓存策略与 commit 透传）。
 - `apps/web/app/error.tsx`：路由级错误边界（异常降级页 + 结构化错误日志）。
 - `apps/web/app/global-error.tsx`：全局错误边界（严重渲染异常兜底与恢复入口）。
 - `apps/web/app/page.tsx`：MVP 入口页面（编辑 + 宇宙视图挂载）。
@@ -154,6 +158,7 @@ apps/web
 4. 节流写入 + schema 迁移，优先保证可持续演进而非一次性实现。
 
 ## 变更日志
+- 2026-02-25：完成生产发布防呆与探针补强：新增 `scripts/check-build-safety.mjs`，在 CI/托管构建中强制拦截 `STARNODE_ALLOW_UNSAFE_BUILD=1` 并接入根包与 `@starnode/web` 的 `prebuild`；`/api/health` 新增 `HEAD` 探针支持并补齐回归测试；`scripts/smoke-prod-web.mjs` 增加构建产物存在性校验、服务早退快速失败与优雅停服，降低 smoke 假阴性；`apps/web/next.config.mjs` 新增 `Strict-Transport-Security`/`Cross-Origin-Opener-Policy`/`Cross-Origin-Resource-Policy` 安全头；`@starnode/storage` 统一迁移回写失败日志关键字为 `[StarNode][storage-migration-rewrite-failed]`；同步更新 `README.md`、`docs/生产运维手册.md` 与 `06_生产发布检查清单.md`。
 - 2026-02-25：完成生产就绪补强：`@starnode/storage` 新增 `subscribeStorageIssues` 诊断订阅能力，覆盖 `storage_unavailable/save_failed/migration_rewrite_failed` 三类高风险持久化异常并补齐回归测试；`apps/web/lib/noteStore/createNoteStore.ts` 接入持久化诊断并复用 `syncNotice` 向用户提示“当前改动可能未落盘”；`/api/health` 增加 `Cache-Control: no-store` 防缓存误判；`scripts/smoke-prod-web.mjs` 增加 `Permissions-Policy` 与健康探针 `cache-control` 校验；CI workflow 新增生产 smoke gate；同步更新 `docs/生产运维手册.md` 与 `06_生产发布检查清单.md` 的 Node22 门禁、P1 告警阈值与持久化故障 SOP。
 - 2026-02-16：新增仓库外部协作文档：补充 `README.md`（项目简介、快速开始、命令、健康检查、文档导航）与 `CONTRIBUTING.md`（贡献流程、分层边界、提交前检查与 PR 模板），提升 GitHub 首屏可读性与协作友好度。
 - 2026-02-16：新增生产发布 smoke gate：根脚本新增 `smoke:prod:web`，执行 `@starnode/web` 生产构建后启动服务并自动校验 `/api/health` 返回与关键安全响应头（`X-Frame-Options`、`X-Content-Type-Options`、`Referrer-Policy`），用于上线前快速验活与安全基线校验；新增 `scripts/smoke-prod-web.mjs`。

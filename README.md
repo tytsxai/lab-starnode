@@ -44,6 +44,7 @@ StarNode 是一个 **本地优先（Local-first）** 的知识管理实验项目
 ├─ docs/
 │  └─ 生产运维手册.md       # 发布、回滚、观测、备份恢复
 ├─ scripts/
+│  ├─ check-build-safety.mjs
 │  ├─ check-node-version.mjs
 │  └─ smoke-prod-web.mjs
 └─ package.json
@@ -67,7 +68,7 @@ apps/web
 - Node.js: `22.x`
 - npm: 建议使用 Node 22 自带 npm（避免版本漂移）
 
-> 项目包含 Node 版本门禁，若版本不符会在 `dev/build/typecheck` 前阻断。
+> 项目包含 Node 版本门禁；并在 CI/托管构建启用 `Build Safety Gate`，禁止 `STARNODE_ALLOW_UNSAFE_BUILD=1` 进入发布链路。
 
 ### 2) 安装依赖
 
@@ -119,7 +120,7 @@ npm run smoke:prod:web
 
 ## 🔍 健康检查与发布前验证
 
-- 健康探针：`GET /api/health`
+- 健康探针：`GET /api/health`（`HEAD` 同样可用）
 - 预期返回：HTTP 200，`{ status: "ok", ... }`
 
 建议在发布前执行：
@@ -128,6 +129,7 @@ npm run smoke:prod:web
 npm ci
 npm run ci:verify
 npm run smoke:prod:web
+npm audit --omit=dev
 ```
 
 更多生产流程见：[`docs/生产运维手册.md`](./docs/生产运维手册.md)
