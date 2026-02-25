@@ -299,7 +299,7 @@ export function loadNotes(): Note[] {
         storage.setItem(STORAGE_KEY, JSON.stringify(buildPayload(payload.notes, payload.version)))
       } catch (error) {
         // 迁移回写失败不应影响读取结果，避免把可用快照误判为空。
-        console.error('[storage] 回写迁移快照失败，将继续使用内存中的已解析数据。', error)
+        console.error('[StarNode][storage-migration-rewrite-failed]', error)
         emitStorageIssue('migration_rewrite_failed')
       }
     }
