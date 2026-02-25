@@ -13,7 +13,7 @@
   "scripts": {
     "check:node": "node scripts/check-node-version.mjs",
     "predev": "npm run check:node",
-    "prebuild": "npm run check:node",
+    "prebuild": "npm run check:node && node scripts/check-build-safety.mjs",
     "pretypecheck": "npm run check:node",
     "dev": "npm run dev --workspace @starnode/web",
     "build": "npm run build --workspaces --if-present",

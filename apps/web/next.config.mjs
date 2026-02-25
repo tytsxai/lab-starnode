@@ -1,6 +1,16 @@
 /** @type {import('next').NextConfig} */
 const allowUnsafeBuildBypass = process.env.STARNODE_ALLOW_UNSAFE_BUILD === '1'
 
+function toBool(value) {
+  if (!value) return false
+  const normalized = String(value).trim().toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes'
+}
+
+const isVercelBuild = toBool(process.env.VERCEL) || typeof process.env.VERCEL_ENV === 'string'
+const isRailwayBuild = (process.env.RAILWAY_ENVIRONMENT ?? '').trim().length > 0
+const isManagedBuild = toBool(process.env.CI) || toBool(process.env.GITHUB_ACTIONS) || isVercelBuild || isRailwayBuild
+
 const securityHeaders = [
   {
     key: 'X-Frame-Options',
@@ -17,8 +27,26 @@ const securityHeaders = [
   {
     key: 'Permissions-Policy',
     value: 'camera=(), microphone=(), geolocation=()'
+  },
+  {
+    key: 'Strict-Transport-Security',
+    value: 'max-age=63072000; includeSubDomains; preload'
+  },
+  {
+    key: 'Cross-Origin-Opener-Policy',
+    value: 'same-origin'
+  },
+  {
+    key: 'Cross-Origin-Resource-Policy',
+    value: 'same-origin'
   }
 ]
+
+if (allowUnsafeBuildBypass && isManagedBuild) {
+  throw new Error(
+    '[StarNode] 检测到 STARNODE_ALLOW_UNSAFE_BUILD=1 且当前为 CI/托管构建环境。请移除该变量后重试。'
+  )
+}
 
 if (allowUnsafeBuildBypass) {
   // 仅供本地临时排障：生产环境禁止开启。
