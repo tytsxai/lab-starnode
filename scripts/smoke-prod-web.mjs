@@ -29,7 +29,8 @@ function assertSecurityHeaders(response) {
   const requiredHeaders = new Map([
     ['x-frame-options', 'DENY'],
     ['x-content-type-options', 'nosniff'],
-    ['referrer-policy', 'strict-origin-when-cross-origin']
+    ['referrer-policy', 'strict-origin-when-cross-origin'],
+    ['permissions-policy', 'camera=(), microphone=(), geolocation=()']
   ])
 
   for (const [header, expected] of requiredHeaders.entries()) {
@@ -37,6 +38,11 @@ function assertSecurityHeaders(response) {
     if (actual !== expected) {
       throw new Error(`安全响应头校验失败：${header}，期望=${expected}，实际=${actual ?? 'null'}`)
     }
+  }
+
+  const cacheControl = response.headers.get('cache-control')?.toLowerCase() ?? ''
+  if (!cacheControl.includes('no-store')) {
+    throw new Error(`健康探针缓存策略校验失败：cache-control 需包含 no-store，实际=${cacheControl || 'null'}`)
   }
 }
 

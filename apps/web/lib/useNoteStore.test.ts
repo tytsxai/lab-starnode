@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Note } from '@starnode/core'
-import type { NotesSyncMeta } from '@starnode/storage'
+import type { NotesSyncMeta, StorageIssue } from '@starnode/storage'
 import { createNoteStore } from './noteStore/createNoteStore'
 import type { NoteStorageAdapter } from './noteStore/storageAdapter'
 import { seedNotes } from './noteStore/seedNotes'
@@ -23,25 +23,38 @@ function createNote(input: Partial<Note> & Pick<Note, 'id'>): Note {
 describe('useNoteStore command behavior', () => {
   let saveNotesSpy: ReturnType<typeof vi.fn>
   let subscribeNotesSpy: ReturnType<typeof vi.fn>
-  let unsubscribeSpy: ReturnType<typeof vi.fn>
+  let subscribeStorageIssuesSpy: ReturnType<typeof vi.fn>
+  let unsubscribeNotesSpy: ReturnType<typeof vi.fn>
+  let unsubscribeStorageIssuesSpy: ReturnType<typeof vi.fn>
   let externalChangeHandler: ((notes: Note[], meta: NotesSyncMeta) => void) | null
+  let storageIssueHandler: ((issue: StorageIssue) => void) | null
   let store: ReturnType<typeof createNoteStore>
 
   beforeEach(() => {
     saveNotesSpy = vi.fn()
-    unsubscribeSpy = vi.fn()
+    unsubscribeNotesSpy = vi.fn()
+    unsubscribeStorageIssuesSpy = vi.fn()
     externalChangeHandler = null
+    storageIssueHandler = null
     subscribeNotesSpy = vi.fn((onChange: (notes: Note[], meta: NotesSyncMeta) => void) => {
       externalChangeHandler = onChange
       return () => {
-        unsubscribeSpy()
+        unsubscribeNotesSpy()
         externalChangeHandler = null
+      }
+    })
+    subscribeStorageIssuesSpy = vi.fn((onIssue: (issue: StorageIssue) => void) => {
+      storageIssueHandler = onIssue
+      return () => {
+        unsubscribeStorageIssuesSpy()
+        storageIssueHandler = null
       }
     })
     const storage: NoteStorageAdapter = {
       loadNotes: () => [],
       saveNotes: saveNotesSpy,
-      subscribeNotes: subscribeNotesSpy
+      subscribeNotes: subscribeNotesSpy,
+      subscribeStorageIssues: subscribeStorageIssuesSpy
     }
 
     store = createNoteStore({
@@ -53,11 +66,13 @@ describe('useNoteStore command behavior', () => {
 
   it('createNoteStore 应注册外部存储订阅以支持多标签页同步', () => {
     expect(subscribeNotesSpy).toHaveBeenCalledTimes(1)
+    expect(subscribeStorageIssuesSpy).toHaveBeenCalledTimes(1)
   })
 
   it('createNoteStore 应暴露 cleanup，确保外部订阅可释放', () => {
     store.cleanup()
-    expect(unsubscribeSpy).toHaveBeenCalledTimes(1)
+    expect(unsubscribeNotesSpy).toHaveBeenCalledTimes(1)
+    expect(unsubscribeStorageIssuesSpy).toHaveBeenCalledTimes(1)
   })
 
   it('检测到本地已有快照且为空数组时，不应回填种子数据', () => {
@@ -338,5 +353,14 @@ describe('useNoteStore command behavior', () => {
 
     state.clearSyncNotice()
     expect(store.getState().syncNotice).toBeNull()
+  })
+
+  it('本地持久化诊断事件应写入告警文案', () => {
+    storageIssueHandler?.({
+      kind: 'save_failed',
+      at: Date.now()
+    })
+
+    expect(store.getState().syncNotice).toBe('本地保存失败（可能因存储配额/策略限制），刷新后可能丢失最新改动。')
   })
 })

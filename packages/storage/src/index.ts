@@ -59,6 +59,24 @@ export interface NotesSyncMeta {
   droppedPendingLocal: boolean
 }
 
+export type StorageIssueKind = 'storage_unavailable' | 'save_failed' | 'migration_rewrite_failed'
+
+export interface StorageIssue {
+  kind: StorageIssueKind
+  at: number
+}
+
+type StorageIssueListener = (issue: StorageIssue) => void
+const storageIssueListeners = new Set<StorageIssueListener>()
+
+function emitStorageIssue(kind: StorageIssueKind): void {
+  if (storageIssueListeners.size === 0) return
+  const issue: StorageIssue = { kind, at: Date.now() }
+  for (const listener of storageIssueListeners) {
+    listener(issue)
+  }
+}
+
 function getLocalStorageSafely(): Storage | null {
   if (typeof window === 'undefined') return null
 
@@ -69,6 +87,7 @@ function getLocalStorageSafely(): Storage | null {
       hasLoggedStorageUnavailable = true
       console.error('[StarNode][storage-unavailable]', error)
     }
+    emitStorageIssue('storage_unavailable')
     return null
   }
 }
@@ -281,6 +300,7 @@ export function loadNotes(): Note[] {
       } catch (error) {
         // 迁移回写失败不应影响读取结果，避免把可用快照误判为空。
         console.error('[storage] 回写迁移快照失败，将继续使用内存中的已解析数据。', error)
+        emitStorageIssue('migration_rewrite_failed')
       }
     }
 
@@ -328,6 +348,7 @@ function flushNotes(): void {
     // 这里必须吞掉异常，避免定时器回调把整个应用打崩；
     // 并保留 pendingNotes，等待后续用户操作触发再次保存。
     console.error('[StarNode][storage-save-failed]', error)
+    emitStorageIssue('save_failed')
   }
   pendingSaveTimer = null
 }
@@ -443,4 +464,11 @@ export function subscribeNotesWithMeta(onChange: (notes: Note[], meta: NotesSync
 
 export function subscribeNotes(onChange: (notes: Note[]) => void): () => void {
   return subscribeNotesInternal((notes) => onChange(notes))
+}
+
+export function subscribeStorageIssues(onIssue: StorageIssueListener): () => void {
+  storageIssueListeners.add(onIssue)
+  return () => {
+    storageIssueListeners.delete(onIssue)
+  }
 }

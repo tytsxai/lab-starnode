@@ -40,6 +40,16 @@ function createNoteId(): string {
   return `note-${Date.now()}-${fallbackNoteIdCounter}`
 }
 
+function getStorageIssueNotice(kind: 'storage_unavailable' | 'save_failed' | 'migration_rewrite_failed'): string {
+  if (kind === 'storage_unavailable') {
+    return '浏览器存储不可用，当前改动可能无法持久化。'
+  }
+  if (kind === 'migration_rewrite_failed') {
+    return '历史数据迁移回写失败，建议立即导出备份并检查浏览器存储策略。'
+  }
+  return '本地保存失败（可能因存储配额/策略限制），刷新后可能丢失最新改动。'
+}
+
 export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
   const deps: CreateNoteStoreDeps = {
     storage: customDeps.storage ?? browserStorageAdapter,
@@ -163,11 +173,20 @@ export function createNoteStore(customDeps: Partial<CreateNoteStoreDeps> = {}) {
     })
   })
 
+  const unsubscribeStorageIssues = deps.storage.subscribeStorageIssues?.((issue) => {
+    const notice = getStorageIssueNotice(issue.kind)
+    store.setState((state) => {
+      if (state.syncNotice === notice) return state
+      return { syncNotice: notice }
+    })
+  })
+
   let cleanedUp = false
   const cleanup = () => {
     if (cleanedUp) return
     cleanedUp = true
     unsubscribeExternal?.()
+    unsubscribeStorageIssues?.()
   }
 
   return Object.assign(store, { cleanup })

@@ -2,7 +2,14 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Note } from '@starnode/core'
-import { hasNotesSnapshot, loadNotes, saveNotes, subscribeNotes, subscribeNotesWithMeta } from './index'
+import {
+  hasNotesSnapshot,
+  loadNotes,
+  saveNotes,
+  subscribeNotes,
+  subscribeNotesWithMeta,
+  subscribeStorageIssues
+} from './index'
 
 function createNote(input: Partial<Note> & Pick<Note, 'id'>): Note {
   return {
@@ -110,6 +117,8 @@ describe('storage migration and throttle', () => {
 
   it('should still return parsed notes when migration rewrite fails', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const onIssue = vi.fn()
+    const unsubscribeIssue = subscribeStorageIssues(onIssue)
 
     window.localStorage.setItem(
       'starnode:notes',
@@ -147,6 +156,8 @@ describe('storage migration and throttle', () => {
     expect(notes[0].id).toBe('legacy-1')
     expect(setItemSpy).toHaveBeenCalledTimes(1)
     expect(consoleErrorSpy).toHaveBeenCalled()
+    expect(onIssue).toHaveBeenCalledWith(expect.objectContaining({ kind: 'migration_rewrite_failed' }))
+    unsubscribeIssue()
     consoleErrorSpy.mockRestore()
   })
 
@@ -206,6 +217,8 @@ describe('storage migration and throttle', () => {
 
   it('should not throw when localStorage setItem fails', () => {
     vi.useFakeTimers()
+    const onIssue = vi.fn()
+    const unsubscribeIssue = subscribeStorageIssues(onIssue)
 
     const setItemSpy = vi.fn(() => {
       throw new Error('QuotaExceededError')
@@ -226,10 +239,14 @@ describe('storage migration and throttle', () => {
     expect(() => vi.advanceTimersByTime(300)).not.toThrow()
     expect(setItemSpy).toHaveBeenCalledTimes(1)
     expect(consoleErrorSpy).toHaveBeenCalled()
+    expect(onIssue).toHaveBeenCalledWith(expect.objectContaining({ kind: 'save_failed' }))
+    unsubscribeIssue()
     consoleErrorSpy.mockRestore()
   })
 
   it('should gracefully fallback when localStorage is unavailable', () => {
+    const onIssue = vi.fn()
+    const unsubscribeIssue = subscribeStorageIssues(onIssue)
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
       get: () => {
@@ -245,7 +262,29 @@ describe('storage migration and throttle', () => {
     expect(typeof unsubscribe).toBe('function')
     unsubscribe()
     expect(consoleErrorSpy).toHaveBeenCalled()
+    expect(onIssue).toHaveBeenCalledWith(expect.objectContaining({ kind: 'storage_unavailable' }))
+    unsubscribeIssue()
     consoleErrorSpy.mockRestore()
+  })
+
+  it('should emit storage_unavailable issue for each failed storage access', () => {
+    const onIssue = vi.fn()
+    const unsubscribeIssue = subscribeStorageIssues(onIssue)
+
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get: () => {
+        throw new Error('SecurityError')
+      }
+    })
+
+    loadNotes()
+    saveNotes([createNote({ id: 'x' })])
+
+    expect(onIssue).toHaveBeenCalledTimes(2)
+    expect(onIssue).toHaveBeenNthCalledWith(1, expect.objectContaining({ kind: 'storage_unavailable' }))
+    expect(onIssue).toHaveBeenNthCalledWith(2, expect.objectContaining({ kind: 'storage_unavailable' }))
+    unsubscribeIssue()
   })
 
   it('should notify subscribers when notes changed from another tab', () => {
