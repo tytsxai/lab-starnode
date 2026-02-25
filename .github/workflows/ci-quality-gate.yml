@@ -26,3 +26,6 @@ jobs:
 
       - name: Run quality gate
         run: npm run ci:verify
+
+      - name: Run production smoke gate
+        run: node scripts/smoke-prod-web.mjs

@@ -154,6 +154,7 @@ apps/web
 4. 节流写入 + schema 迁移，优先保证可持续演进而非一次性实现。
 
 ## 变更日志
+- 2026-02-25：完成生产就绪补强：`@starnode/storage` 新增 `subscribeStorageIssues` 诊断订阅能力，覆盖 `storage_unavailable/save_failed/migration_rewrite_failed` 三类高风险持久化异常并补齐回归测试；`apps/web/lib/noteStore/createNoteStore.ts` 接入持久化诊断并复用 `syncNotice` 向用户提示“当前改动可能未落盘”；`/api/health` 增加 `Cache-Control: no-store` 防缓存误判；`scripts/smoke-prod-web.mjs` 增加 `Permissions-Policy` 与健康探针 `cache-control` 校验；CI workflow 新增生产 smoke gate；同步更新 `docs/生产运维手册.md` 与 `06_生产发布检查清单.md` 的 Node22 门禁、P1 告警阈值与持久化故障 SOP。
 - 2026-02-16：新增仓库外部协作文档：补充 `README.md`（项目简介、快速开始、命令、健康检查、文档导航）与 `CONTRIBUTING.md`（贡献流程、分层边界、提交前检查与 PR 模板），提升 GitHub 首屏可读性与协作友好度。
 - 2026-02-16：新增生产发布 smoke gate：根脚本新增 `smoke:prod:web`，执行 `@starnode/web` 生产构建后启动服务并自动校验 `/api/health` 返回与关键安全响应头（`X-Frame-Options`、`X-Content-Type-Options`、`Referrer-Policy`），用于上线前快速验活与安全基线校验；新增 `scripts/smoke-prod-web.mjs`。
 - 2026-02-16：完成交互与性能稳态优化：`@starnode/core` 新增 `calculateUniverseSnapshot`（基于 `WeakMap<notesRef, snapshot>` 的只读快照缓存），统一产出 `planets + links`，减少同一渲染周期在 `UniversePanel` 与 `UniverseScene` 的重复关联计算；`apps/web/lib/noteStore/noteCommands.ts` 为 `updateNote` 增加“内容未变化”短路（仅退出编辑态，不触发落盘与无意义 `updatedAt` 变更）；`apps/web/lib/noteStore/createNoteStore.ts` 为 `setSelectedPlanetId/setDraftPlanetId` 增加星球白名单守卫并抑制同值更新，且增强 `noteId` fallback 生成策略（时间戳 + 递增计数）；补齐 `packages/core` 与 `apps/web` 对应回归测试，确保缓存命中语义与状态守卫行为可回归验证。
