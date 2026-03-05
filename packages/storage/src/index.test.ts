@@ -115,6 +115,48 @@ describe('storage migration and throttle', () => {
     expect(rewritten.notes[0].updatedAt).toBe('1970-01-01T00:00:00.000Z')
   })
 
+  it('should not rewrite snapshots from newer schema versions', () => {
+    const futurePayload = JSON.stringify({
+      schemaVersion: 4,
+      revision: 9,
+      writtenAt: 9_999,
+      writerId: 'writer-future',
+      notes: [
+        {
+          ...createNote({ id: 'future-1', title: 'from-future' }),
+          semanticVector: [0.1, 0.2, 0.3]
+        }
+      ],
+      futureFeatureFlags: {
+        aiIndex: true
+      }
+    })
+    storageMap.set('starnode:notes', futurePayload)
+
+    const setItemSpy = vi.fn((key: string, value: string) => {
+      storageMap.set(key, value)
+    })
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => storageMap.get(key) ?? null,
+        setItem: setItemSpy,
+        removeItem: (key: string) => {
+          storageMap.delete(key)
+        },
+        clear: () => {
+          storageMap.clear()
+        }
+      }
+    })
+
+    const notes = loadNotes()
+    expect(notes).toHaveLength(1)
+    expect(notes[0].id).toBe('future-1')
+    expect(setItemSpy).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem('starnode:notes')).toBe(futurePayload)
+  })
+
   it('should still return parsed notes when migration rewrite fails', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const onIssue = vi.fn()

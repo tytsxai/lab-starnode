@@ -277,8 +277,17 @@ function parsePayload(raw: string): ParsedStorageResult {
   }
 
   const normalized = normalizeNotesWithRewrite(rawNotes)
+  // 前向兼容：遇到未来 schema 时只读不回写，避免旧客户端“读取即降级覆盖”。
+  if (schemaVersion > SCHEMA_VERSION) {
+    return {
+      needsRewrite: false,
+      notes: normalized.notes,
+      version
+    }
+  }
+
   return {
-    needsRewrite: schemaVersion !== SCHEMA_VERSION || normalized.hadRewrite,
+    needsRewrite: normalized.hadRewrite,
     notes: normalized.notes,
     version
   }
