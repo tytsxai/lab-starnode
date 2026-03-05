@@ -158,6 +158,7 @@ apps/web
 4. 节流写入 + schema 迁移，优先保证可持续演进而非一次性实现。
 
 ## 变更日志
+- 2026-03-05：完成 storage 前向兼容修复：`@starnode/storage` 在读取 `schemaVersion` 高于当前客户端时改为“只读不回写”，避免旧客户端读取未来快照后发生降级覆盖；补充 `packages/storage/src/index.test.ts` 回归测试，验证未来版本快照可读取且不会触发 `localStorage.setItem` 回写。
 - 2026-02-25：完成生产发布防呆与探针补强：新增 `scripts/check-build-safety.mjs`，在 CI/托管构建中强制拦截 `STARNODE_ALLOW_UNSAFE_BUILD=1` 并接入根包与 `@starnode/web` 的 `prebuild`；`/api/health` 新增 `HEAD` 探针支持并补齐回归测试；`scripts/smoke-prod-web.mjs` 增加构建产物存在性校验、服务早退快速失败与优雅停服，降低 smoke 假阴性；`apps/web/next.config.mjs` 新增 `Strict-Transport-Security`/`Cross-Origin-Opener-Policy`/`Cross-Origin-Resource-Policy` 安全头；`@starnode/storage` 统一迁移回写失败日志关键字为 `[StarNode][storage-migration-rewrite-failed]`；同步更新 `README.md`、`docs/生产运维手册.md` 与 `06_生产发布检查清单.md`。
 - 2026-02-25：完成生产就绪补强：`@starnode/storage` 新增 `subscribeStorageIssues` 诊断订阅能力，覆盖 `storage_unavailable/save_failed/migration_rewrite_failed` 三类高风险持久化异常并补齐回归测试；`apps/web/lib/noteStore/createNoteStore.ts` 接入持久化诊断并复用 `syncNotice` 向用户提示“当前改动可能未落盘”；`/api/health` 增加 `Cache-Control: no-store` 防缓存误判；`scripts/smoke-prod-web.mjs` 增加 `Permissions-Policy` 与健康探针 `cache-control` 校验；CI workflow 新增生产 smoke gate；同步更新 `docs/生产运维手册.md` 与 `06_生产发布检查清单.md` 的 Node22 门禁、P1 告警阈值与持久化故障 SOP。
 - 2026-02-16：新增仓库外部协作文档：补充 `README.md`（项目简介、快速开始、命令、健康检查、文档导航）与 `CONTRIBUTING.md`（贡献流程、分层边界、提交前检查与 PR 模板），提升 GitHub 首屏可读性与协作友好度。
