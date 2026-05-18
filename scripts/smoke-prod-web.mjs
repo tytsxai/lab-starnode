@@ -144,7 +144,15 @@ async function run() {
   }
 }
 
-run().catch((error) => {
-  console.error('[Smoke] 失败：', error)
-  process.exitCode = 1
-})
+run()
+  .then(() => {
+    // Force-exit on success so any lingering handles (npx's child Next.js
+    // process, stdout/stderr pipes that didn't fully drain) don't keep
+    // the event loop alive. Without this the job hangs for 14m on CI
+    // until GitHub Actions cancels it.
+    process.exit(0)
+  })
+  .catch((error) => {
+    console.error('[Smoke] 失败：', error)
+    process.exit(1)
+  })
