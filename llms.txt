@@ -1,0 +1,53 @@
+# StarNode (星诺)
+
+> Local-first, browser-based personal knowledge manager that visualizes notes as a 3D "knowledge universe" of planets and gravitational links. Each note is a knowledge particle; clusters form planets; semantic similarity becomes visible gravity. Built with Next.js + TypeScript, monorepo with `core` (domain + linking algorithm), `renderer` (3D), `storage` (local persistence + migrations).
+
+This is an *experimental* knowledge-management tool for people who feel that "I write a lot of notes but I can never find anything and the structure is invisible." StarNode tries to make that structure literally visible and navigable in 3D, with **explainable** link evidence — every "these two notes are related" assertion can be drilled into to see *which tag*, *which keyword*, or *which score* triggered it.
+
+## Key docs
+
+- [README.md](README.md): Overview, MVP capabilities, repo layout, quick start, CI gates.
+- [01_项目愿景.md](01_项目愿景.md): Project vision (Chinese).
+- [02_产品需求文档.md](02_产品需求文档.md): PRD (Chinese).
+- [03_技术架构.md](03_技术架构.md): Technical architecture (Chinese).
+- [05_开发路线图.md](05_开发路线图.md): Roadmap (Chinese).
+- [06_生产发布检查清单.md](06_生产发布检查清单.md): Production release checklist.
+- [docs/生产运维手册.md](docs/生产运维手册.md): Production ops manual (deploy / rollback / observability / backup).
+- [CONTRIBUTING.md](CONTRIBUTING.md): How to contribute.
+
+## What StarNode is
+
+- A **local-first** personal knowledge-management web app (notes live in browser `localStorage`)
+- A **3D universe view** of those notes, grouped into "planets" by user-defined categories
+- An **explainable linking engine**: tag-based + keyword-based + semantic-similarity, with the evidence panel always visible
+- A **monorepo**: Next.js shell (`apps/web`), pure domain logic + linking (`packages/core`), 3D rendering (`packages/renderer`), local persistence + migration (`packages/storage`)
+- **Engineering-quality-gated**: lint / test / typecheck / build all required to pass, with explicit "Build Safety Gate" preventing unsafe production builds
+
+## What StarNode is NOT (yet)
+
+- ❌ Not a cloud sync service. Closing browser data wipes notes unless backed up.
+- ❌ Not a replacement for Obsidian / Roam / Logseq for daily writing yet — MVP focuses on visualizing relationships.
+- ❌ Not a Markdown vault. Notes are stored as structured records, not `.md` files.
+- ❌ Not multi-user. Single-user, single-device by design.
+- ❌ Not an AI assistant. No embedded LLM calls yet (linking is rule-based + scored, not embedding-based).
+
+## Common questions
+
+- **Where are my notes stored?** Browser `localStorage` under key `starnode:notes`. Clear browsing data → notes gone. Back them up via the ops manual.
+- **Does it work offline?** Yes. After the first load, the SPA is fully usable without network.
+- **Can I sync across devices?** Not yet — the v0.1 / v2026.x line is single-device. Sync is on the roadmap but explicitly deferred until the local experience is solid.
+- **How are notes linked?** Three signals: explicit tags, keyword extraction from content, similarity scoring. Every link can be inspected to see which signal contributed how much.
+- **Why 3D? Isn't that just for show?** The 3D view is the indexing UI, not a gimmick. Clusters of related notes form planets; the spatial position is meaningful (closer = more strongly linked).
+- **What's the difference from Obsidian Graph view?** Obsidian's graph is 2D and shows hard `[[wikilinks]]`. StarNode is 3D, groups by planet (your own taxonomy), and surfaces *inferred* links with evidence — you don't have to author `[[links]]` for the connection to exist.
+
+## Repository
+
+- GitHub: https://github.com/tytsxai/lab-starnode
+- License: see [LICENSE](LICENSE)
+- Stack: Next.js, TypeScript, monorepo (npm workspaces), 3D renderer (browser WebGL)
+- Versioning: CalVer (`vYYYY.MM.DD`) reflecting the experimental status
+- Author: tytsxai
+
+## Useful search phrases
+
+- 3D 笔记可视化, 3D knowledge graph notes, knowledge universe app, local-first 笔记, local-first note-taking, explainable note linking, 笔记关系可视化, 知识图谱可视化, knowledge graph visualization, Obsidian Graph 替代, Obsidian Graph alternative, Roam graph 替代, Logseq alternative, personal knowledge management, PKM 3D, second brain 3D, second brain visualization, browser-based note app no signup, Next.js knowledge graph

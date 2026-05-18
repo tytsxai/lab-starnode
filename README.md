@@ -2,10 +2,18 @@
 
 > 让记录知识，变成亲眼看见思想演化的过程。
 
+[![Release](https://img.shields.io/github/v/release/tytsxai/lab-starnode)](https://github.com/tytsxai/lab-starnode/releases) · [llms.txt](llms.txt) · [Issues](https://github.com/tytsxai/lab-starnode/issues) · [Roadmap](05_开发路线图.md)
+
+> **关键词**：3D 笔记可视化 · 知识图谱可视化 · 本地优先笔记 · 可解释笔记关联 · 个人知识管理 · PKM · second brain 3D · Obsidian Graph 替代 · Roam 替代 · Logseq 替代 · 浏览器原生 PKM
+>
+> **Keywords**: 3D knowledge graph notes · knowledge universe app · local-first note-taking · explainable note linking · Obsidian Graph alternative · Roam alternative · Logseq alternative · browser-based PKM · second brain visualization
+
 StarNode 是一个 **本地优先（Local-first）** 的知识管理实验项目：
 你写下的每条笔记都会成为“宇宙中的一个知识粒子”，按星球聚合、按语义引力连接、按时间持续演化。
 
 如果你厌倦了「写了很多、回头找不到、知识结构看不见」的笔记体验，这个项目是为你准备的。
+
+**English summary**: StarNode is a local-first, browser-based personal knowledge manager that renders your notes as a 3D "knowledge universe" — clusters become planets, semantic similarity becomes visible gravity. Every inferred link is **explainable**: drill into any connection to see exactly which tag, keyword, or similarity score triggered it. No cloud, no signup, no AI black box. Designed for people who feel "I write a lot but I can never find anything and the structure is invisible." Stack: Next.js + TypeScript, npm-workspaces monorepo.
 
 ---
 
@@ -167,7 +175,29 @@ npm audit --omit=dev
 
 ---
 
+## ❓ FAQ
+
+**Q：笔记存在哪里?清浏览器数据会不会丢?**
+存在浏览器 `localStorage`,key 是 `starnode:notes`。清浏览器数据**确实会丢**。备份恢复看 [生产运维手册](./docs/生产运维手册.md)。
+
+**Q：能不能多端同步?**
+现阶段不能。同步在路线图里,但**故意排在「本地体验做好」后面**,先稳后扩。
+
+**Q：和 Obsidian Graph、Roam、Logseq 有什么区别?**
+- Obsidian Graph 是 2D + 显式 `[[wikilink]]`,你不写 link 就没有线
+- StarNode 是 3D + **推断关联**(标签 / 关键词 / 语义评分),不用你手动连线
+- 而且每条 link 都能展开看「为什么连」—— 是哪个标签 / 关键词 / 分数触发的(explainable linking)
+
+**Q：3D 不就是装饰吗?**
+3D 是检索 UI 本身,不是装饰。相关笔记空间上更近、聚成星球;**位置本身有信息**。
+
+**Q：要不要联网?**
+首次加载之后完全本地运行,断网可读写。
+
+**Q：怎么开始?**
+Node.js 22.x + `npm ci` + `npm run dev`,浏览器开 `http://localhost:3000`。
+
 ## 📌 项目状态
 
 当前仓库聚焦于 **MVP 与工程质量稳定性**：
-先把“可用、可解释、可维护”打牢，再推进更大规模的 AI 与协作能力。
+先把"可用、可解释、可维护"打牢，再推进更大规模的 AI 与协作能力。
