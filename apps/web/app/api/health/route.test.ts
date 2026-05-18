@@ -7,6 +7,10 @@ describe('api/health route', () => {
   })
 
   it('GET should return ok payload with non-cacheable headers', async () => {
+    // GitHub Actions always sets GITHUB_SHA on its runners. Stub it empty
+    // so we exercise the no-commit branch.
+    vi.stubEnv('GITHUB_SHA', '')
+
     const response = await GET()
 
     expect(response.status).toBe(200)

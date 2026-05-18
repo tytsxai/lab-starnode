@@ -9,14 +9,17 @@ const HEALTH_HEADERS = {
 }
 
 function createHealthPayload() {
+  // Use || (not ??) so empty-string env vars fall through to null.
+  // Real example: GitHub Actions runners always export GITHUB_SHA, but
+  // when the route runs outside a deploy context the value can be ''.
   return {
     status: 'ok',
     service: 'starnode-web',
     now: new Date().toISOString(),
     commit:
-      process.env.VERCEL_GIT_COMMIT_SHA ??
-      process.env.GITHUB_SHA ??
-      process.env.RAILWAY_GIT_COMMIT_SHA ??
+      process.env.VERCEL_GIT_COMMIT_SHA ||
+      process.env.GITHUB_SHA ||
+      process.env.RAILWAY_GIT_COMMIT_SHA ||
       null
   }
 }
