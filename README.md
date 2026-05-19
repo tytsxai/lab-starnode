@@ -201,3 +201,7 @@ Node.js 22.x + `npm ci` + `npm run dev`,浏览器开 `http://localhost:3000`。
 
 当前仓库聚焦于 **MVP 与工程质量稳定性**：
 先把"可用、可解释、可维护"打牢，再推进更大规模的 AI 与协作能力。
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=tytsxai/lab-starnode&type=Date)](https://www.star-history.com/#tytsxai/lab-starnode&Date)
