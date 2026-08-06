@@ -2,7 +2,7 @@
 
 > 让记录知识，变成亲眼看见思想演化的过程。
 
-[![Release](https://img.shields.io/github/v/release/tytsxai/lab-starnode)](https://github.com/tytsxai/lab-starnode/releases) · [llms.txt](llms.txt) · [Issues](https://github.com/tytsxai/lab-starnode/issues) · [Roadmap](05_开发路线图.md)
+[![Release](https://img.shields.io/github/v/release/tytsxai/starnode)](https://github.com/tytsxai/starnode/releases) · [llms.txt](llms.txt) · [Issues](https://github.com/tytsxai/starnode/issues) · [Roadmap](05_开发路线图.md)
 
 > **关键词**：3D 笔记可视化 · 知识图谱可视化 · 本地优先笔记 · 可解释笔记关联 · 个人知识管理 · PKM · second brain 3D · Obsidian Graph 替代 · Roam 替代 · Logseq 替代 · 浏览器原生 PKM
 >
@@ -14,6 +14,22 @@ StarNode 是一个 **本地优先（Local-first）** 的知识管理实验项目
 如果你厌倦了「写了很多、回头找不到、知识结构看不见」的笔记体验，这个项目是为你准备的。
 
 **English summary**: StarNode is a local-first, browser-based personal knowledge manager that renders your notes as a 3D "knowledge universe" — clusters become planets, semantic similarity becomes visible gravity. Every inferred link is **explainable**: drill into any connection to see exactly which tag, keyword, or similarity score triggered it. No cloud, no signup, no AI black box. Designed for people who feel "I write a lot but I can never find anything and the structure is invisible." Stack: Next.js + TypeScript, npm-workspaces monorepo.
+
+---
+
+## 适合谁 / 不适合谁
+
+**适合**
+
+- 笔记很多但「结构看不见、回头找不到」的个人用户
+- 想要 **3D 知识图谱 / second brain 可视化** 且坚持 **local-first** 的人
+- 研究可解释关联（explainable linking）与 Next.js monorepo 的开发者
+
+**不适合（当前）**
+
+- 需要多端云同步、多用户协作
+- 需要以 `.md` 文件 vault 为中心的工作流（笔记存 structured records，非 Markdown 仓库）
+- 把本项目当成熟 Obsidian / Roam / Logseq 全日写作替代品（MVP 侧重关系可视化）
 
 ---
 
@@ -204,4 +220,4 @@ Node.js 22.x + `npm ci` + `npm run dev`,浏览器开 `http://localhost:3000`。
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=tytsxai/lab-starnode&type=Date)](https://www.star-history.com/#tytsxai/lab-starnode&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=tytsxai/starnode&type=Date)](https://www.star-history.com/#tytsxai/starnode&Date)

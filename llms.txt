@@ -42,8 +42,8 @@ This is an *experimental* knowledge-management tool for people who feel that "I 
 
 ## Repository
 
-- GitHub: https://github.com/tytsxai/lab-starnode
-- License: see [LICENSE](LICENSE)
+- GitHub: https://github.com/tytsxai/starnode
+- License: MIT — see [LICENSE](LICENSE)
 - Stack: Next.js, TypeScript, monorepo (npm workspaces), 3D renderer (browser WebGL)
 - Versioning: CalVer (`vYYYY.MM.DD`) reflecting the experimental status
 - Author: tytsxai

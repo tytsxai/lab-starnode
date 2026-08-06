@@ -2,7 +2,28 @@
   "name": "starnode",
   "private": true,
   "version": "0.1.0",
-  "description": "StarNode monorepo",
+  "description": "StarNode (星诺) — local-first 3D knowledge universe PKM: notes as planets, explainable semantic links, Next.js monorepo",
+  "keywords": [
+    "starnode",
+    "pkm",
+    "knowledge-graph",
+    "3d-notes",
+    "local-first",
+    "second-brain",
+    "nextjs",
+    "typescript",
+    "note-taking",
+    "explainable-linking"
+  ],
+  "homepage": "https://github.com/tytsxai/starnode#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tytsxai/starnode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tytsxai/starnode/issues"
+  },
+  "license": "MIT",
   "engines": {
     "node": "22.x"
   },
